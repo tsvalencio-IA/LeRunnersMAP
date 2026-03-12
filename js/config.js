@@ -1,6 +1,9 @@
 // js/config.js
-// CONFIGURAÇÕES GLOBAIS - VERSÃO MESTRA Vercel (MIGRAÇÃO)
+// CONFIGURAÇÕES GLOBAIS - VERSÃO MESTRA 11.0 (COFRE FIREBASE DINÂMICO)
 
+// Apenas as chaves de acesso ao Firebase Realtime Database devem ficar aqui.
+// Estas chaves são "públicas" por design no Firebase, pois as regras de segurança 
+// (Database Rules) é que protegem os dados reais.
 const firebaseConfig = {
   apiKey: "AIzaSyDEfyw4v2UlVw85swueLoEnGjYY95xh2NI",
   authDomain: "lerunners-a6de2.firebaseapp.com",
@@ -11,36 +14,26 @@ const firebaseConfig = {
   appId: "1:24483751716:web:313b3013bd11c75e2eb5b1"
 };
 
-// --- TÉCNICA DE OFUSCAÇÃO DE CHAVE (GEMINI) ---
-const GEMINI_PART_A = "AIzaSy"; 
-const GEMINI_PART_B = "D2L7-vh645XH6pDZszlxNokE-u33lE1fs"; 
+// ===================================================================
+// VARIÁVEIS GLOBAIS (PREENCHIDAS DINAMICAMENTE PELO FIREBASE)
+// ===================================================================
+// NÃO DIGITE NENHUMA CHAVE AQUI. 
+// O módulo loadSystemConfigs() no app.js buscará as chaves salvas 
+// no nó 'config/apiKeys' do Firebase e as injetará abaixo em tempo de execução.
 
-const GEMINI_API_KEY = GEMINI_PART_A + GEMINI_PART_B;
+window.GEMINI_API_KEY = ""; 
+window.GOOGLE_MAPS_KEY = ""; 
 
-// --- Configuração do CLOUDINARY ---
-const CLOUDINARY_CONFIG = {
-  cloudName: "djtiaygrs",
-  uploadPreset: "LeRunners"
+window.CLOUDINARY_CONFIG = {
+  cloudName: "",
+  uploadPreset: ""
 };
 
-// --- Configuração do STRAVA (CONEXÃO HÍBRIDA) ---
+// ===================================================================
+// CONFIGURAÇÕES LEGADAS (MANTIDAS POR SEGURANÇA ESTRUTURAL)
+// ===================================================================
+// Caso o cliente decida reativar a ponte com o Strava no futuro.
 const STRAVA_PUBLIC_CONFIG = {
     clientID: '185534', 
-    
-    // 1. FRONTEND NOVO (Seu site seguro na Vercel)
-    // Isso corrige o erro de login do Strava
-    redirectURI: 'https://le-runners-rp.vercel.app/app.html', 
-    
-    // 2. BACKEND ANTIGO (Onde as chaves secretas já funcionam)
-    // Não mexemos aqui, pois o motor está perfeito
-    vercelAPI: 'https://le-runners2.vercel.app/api/strava-exchange',
-    vercelRefreshAPI: 'https://le-runners2.vercel.app/api/strava-refresh'
+    redirectURI: 'https://le-runners-rp.vercel.app/app.html' // Modifique caso volte a usar Vercel
 };
-
-// ===================================================================
-// EXPORTAÇÃO GLOBAL
-// ===================================================================
-window.firebaseConfig = firebaseConfig;
-window.GEMINI_API_KEY = GEMINI_API_KEY;
-window.CLOUDINARY_CONFIG = CLOUDINARY_CONFIG;
-window.STRAVA_PUBLIC_CONFIG = STRAVA_PUBLIC_CONFIG;

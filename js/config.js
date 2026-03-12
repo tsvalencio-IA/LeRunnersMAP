@@ -5,13 +5,12 @@
 // Estas chaves são "públicas" por design no Firebase, pois as regras de segurança 
 // (Database Rules) é que protegem os dados reais.
 const firebaseConfig = {
-  apiKey: "AIzaSyDEfyw4v2UlVw85swueLoEnGjYY95xh2NI",
-  authDomain: "lerunners-a6de2.firebaseapp.com",
-  databaseURL: "https://lerunners-a6de2-default-rtdb.firebaseio.com",
-  projectId: "lerunners-a6de2",
-  storageBucket: "lerunners-a6de2.firebasestorage.app",
-  messagingSenderId: "24483751716",
-  appId: "1:24483751716:web:313b3013bd11c75e2eb5b1"
+  apiKey: "AIzaSyAGr4SzZOUoNpkgcfh8D5Pv4StMkqAAX_0",
+  authDomain: "lerunnersmap.firebaseapp.com",
+  projectId: "lerunnersmap",
+  storageBucket: "lerunnersmap.firebasestorage.app",
+  messagingSenderId: "913793840199",
+  appId: "1:913793840199:web:09359bba5aeee3fda6ed62"
 };
 
 // ===================================================================

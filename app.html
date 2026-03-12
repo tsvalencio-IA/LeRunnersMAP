@@ -42,7 +42,11 @@
             <h1>LeRunners</h1>
             <nav>
                 <button id="nav-planilha-btn" class="btn btn-nav active">
-                    <i class='bx bx-calendar'></i> <span>Planilha</span>
+                    <i class='bx bx-shield-quarter'></i> <span>Gestão Coach</span>
+                </button>
+                <!-- BOTÃO EXCLUSIVO DO ADMIN PARA VER O PRÓPRIO TREINO -->
+                <button id="nav-meu-treino-btn" class="btn btn-nav hidden">
+                    <i class='bx bx-run'></i> <span>Meu Treino</span>
                 </button>
                 <button id="nav-finance-btn" class="btn btn-nav hidden">
                     <i class='bx bx-dollar-circle'></i> <span>Financeiro</span>
@@ -51,7 +55,7 @@
                     <i class='bx bx-news'></i> <span>Feed</span>
                 </button>
                 <button id="nav-profile-btn" class="btn btn-nav">
-                    <i class='bx bx-user-circle'></i> <span>Meu Perfil</span>
+                    <i class='bx bx-user-circle'></i> <span>Perfil</span>
                 </button>
                 <span id="userDisplay" class="user-display"></span>
                 <button id="logoutButton" class="btn btn-danger">
@@ -211,15 +215,15 @@
                         <div id="admin-tab-configuracoes" class="admin-tab-content">
                             <h4><i class='bx bx-cog'></i> Cofre de Chaves e APIs</h4>
                             <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 1rem;">
-                                As chaves cadastradas aqui são criptografadas pelo Firebase e injetadas na plataforma sem expor no código fonte.
+                                As chaves cadastradas aqui são injetadas globalmente na plataforma para todos os alunos, sem expor no código fonte.
                             </p>
                             <form id="api-config-form" class="form-minimal">
                                 <div class="form-group">
-                                    <label>Chave do Google Maps (Necessário para GPS Tracker do Atleta)</label>
+                                    <label>Chave do Google Maps (Necessário para GPS Tracker)</label>
                                     <input type="password" id="config-maps-key" placeholder="AIzaSy...">
                                 </div>
                                 <div class="form-group">
-                                    <label>Chave do Google Gemini 2.0 (Necessário para IA)</label>
+                                    <label>Chave do Google Gemini 2.0 (Necessário para IAs)</label>
                                     <input type="password" id="config-gemini-key" placeholder="AIzaSy...">
                                 </div>
                                 <fieldset class="workout-fieldset">
@@ -235,7 +239,7 @@
                                         </div>
                                     </div>
                                 </fieldset>
-                                <button type="submit" class="btn btn-primary"><i class='bx bx-save'></i> Salvar Configurações no Cofre</button>
+                                <button type="submit" class="btn btn-primary"><i class='bx bx-save'></i> Salvar no Cofre Global</button>
                             </form>
                         </div>
 
@@ -245,7 +249,7 @@
         </div>
     </template>
 
-    <!-- TEMPLATE DO ATLETA COM BOTÃO STRAVA/GPS -->
+    <!-- TEMPLATE DO ATLETA -->
     <template id="atleta-panel-template">
         <div class="atleta-dashboard">
             <div class="atleta-header">
@@ -256,7 +260,7 @@
                         <i class='bx bx-navigation'></i> Correr Agora (GPS)
                     </button>
                     <button id="log-manual-activity-btn" class="btn btn-primary">
-                        <i class='bx bx-plus-medical'></i> Registrar Manual
+                        <i class='bx bx-plus-medical'></i> Reg. Manual
                     </button>
                 </div>
             </div>
@@ -403,6 +407,11 @@
             </div>
             
             <div id="gps-map" style="flex-grow: 1; background: #e2e8f0; position: relative;">
+                <!-- ALERTA DE WAKE LOCK (TELA ACESA) -->
+                <div style="position: absolute; top: 110px; left: 10px; right: 10px; background: rgba(255, 193, 7, 0.9); padding: 8px; border-radius: 6px; font-size: 0.8rem; text-align: center; color: #333; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                    <i class='bx bxs-bulb'></i> <b>Atenção:</b> O app manterá a tela ligada para o GPS não falhar. Guarde no bolso!
+                </div>
+
                 <div style="position: absolute; top: 10px; left: 10px; right: 10px; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 10; display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center;">
                     <div class="gps-stat-box">
                         <span class="gps-stat-label">Tempo</span>
@@ -433,7 +442,7 @@
         </div>
     </div>
 
-    <!-- MODAIS ORIGINAIS PRESERVADOS -->
+    <!-- MODAIS ORIGINAIS -->
     <div id="feedback-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">

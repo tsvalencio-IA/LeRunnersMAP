@@ -1,5 +1,5 @@
 // js/config.js
-// CONFIGURAÇÕES GLOBAIS - VERSÃO MESTRA 11.0 (COFRE FIREBASE DINÂMICO)
+// CONFIGURAÇÕES GLOBAIS - VERSÃO MESTRA (COFRE FIREBASE DINÂMICO)
 
 // Apenas as chaves de acesso ao Firebase Realtime Database devem ficar aqui.
 // Estas chaves são "públicas" por design no Firebase, pois as regras de segurança 
@@ -26,13 +26,4 @@ window.GOOGLE_MAPS_KEY = "";
 window.CLOUDINARY_CONFIG = {
   cloudName: "",
   uploadPreset: ""
-};
-
-// ===================================================================
-// CONFIGURAÇÕES LEGADAS (MANTIDAS POR SEGURANÇA ESTRUTURAL)
-// ===================================================================
-// Caso o cliente decida reativar a ponte com o Strava no futuro.
-const STRAVA_PUBLIC_CONFIG = {
-    clientID: '185534', 
-    redirectURI: 'https://le-runners-rp.vercel.app/app.html' // Modifique caso volte a usar Vercel
 };

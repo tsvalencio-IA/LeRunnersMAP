@@ -1,6 +1,7 @@
 /* =================================================================== */
 /* APP.JS - VERSÃO MESTRA 11.0 (COFRE DE CHAVES BLINDADO NO FIREBASE)
 /* LERUNNERS - SISTEMA DE TREINOS E GPS TRACKER
+/* FIX: Escopo global de constantes (correção de inicialização silenciosa)
 /* =================================================================== */
 
 const AppPrincipal = {
@@ -22,10 +23,15 @@ const AppPrincipal = {
 
     // --- INICIALIZAÇÃO ---
     init: () => {
-        if (typeof window.firebaseConfig === 'undefined') return;
+        // CORREÇÃO CRÍTICA: Variáveis "const" não vão para o objeto "window".
+        // Lemos "firebaseConfig" diretamente do escopo global.
+        if (typeof firebaseConfig === 'undefined') {
+            console.error("Erro Crítico: firebaseConfig não foi encontrado!");
+            return;
+        }
         try {
             if (firebase.apps.length === 0) {
-                firebase.initializeApp(window.firebaseConfig);
+                firebase.initializeApp(firebaseConfig);
             }
         } catch (e) {
             console.error("Erro Firebase:", e);

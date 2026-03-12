@@ -1,8 +1,9 @@
 /* =================================================================== */
-/* SERVICE WORKER - V12.0 (FORCE UPDATE - CACHE BUSTER MASTER)
+/* SERVICE WORKER - V13.0 (CACHE BUSTER DE EMERGÊNCIA)
 /* =================================================================== */
 
-const CACHE_NAME = 'lerunners-cache-v12.0'; // Alterar este número força a limpeza do cache no dispositivo
+// A MUDANÇA DE V12.0 PARA V13.0 FORÇA O NAVEGADOR A BAIXAR O NOVO APP.JS
+const CACHE_NAME = 'lerunners-cache-v13.0'; 
 
 const FILES_TO_CACHE = [
     './',
@@ -40,7 +41,7 @@ self.addEventListener('activate', (event) => {
             return Promise.all(
                 cacheNames.map((cacheName) => {
                     if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
+                        return caches.delete(cacheName); // Deleta a versão 12 quebrada
                     }
                 })
             );
@@ -49,7 +50,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // Ignora APIs e domínios dinâmicos para não os meter no cache
     if (event.request.url.includes('firebaseio.com') || 
         event.request.url.includes('googleapis.com') || 
         event.request.url.includes('cloudinary.com') ||

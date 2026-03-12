@@ -1,5 +1,5 @@
 /* =================================================================== */
-/* APP.JS - VERSÃO MESTRA 11.7 (ADMIN-ATLETA + GPS WAKELOCK)
+/* APP.JS - VERSÃO MESTRA 11.8 (GPS TRACKER PREMIUM UI)
 /* LERUNNERS - SISTEMA DE TREINOS E GPS TRACKER
 /* =================================================================== */
 
@@ -41,7 +41,6 @@ const AppPrincipal = {
         }
     },
     
-    // --- BUSCA DE CHAVES NO COFRE GLOBAIS ---
     loadSystemConfigs: async () => {
         return new Promise((resolve) => {
             AppPrincipal.state.db.ref('config/apiKeys').once('value')
@@ -99,15 +98,13 @@ const AppPrincipal = {
             userDisplay: document.getElementById('userDisplay'),
             logoutBtn: document.getElementById('logoutButton'),
             
-            // Navegação
             navPlanilhaBtn: document.getElementById('nav-planilha-btn'),
-            navMeuTreinoBtn: document.getElementById('nav-meu-treino-btn'), // NOVO
+            navMeuTreinoBtn: document.getElementById('nav-meu-treino-btn'),
             navFinanceBtn: document.getElementById('nav-finance-btn'),
             navFeedBtn: document.getElementById('nav-feed-btn'),
             navProfileBtn: document.getElementById('nav-profile-btn'),
             mainContent: document.getElementById('app-main-content'),
             
-            // Perfil
             profileModal: document.getElementById('profile-modal'),
             closeProfileModal: document.getElementById('close-profile-modal'),
             profileForm: document.getElementById('profile-form'),
@@ -117,14 +114,12 @@ const AppPrincipal = {
             profileName: document.getElementById('profile-name'),
             profileBio: document.getElementById('profile-bio'),
 
-            // View Profile Modal
             viewProfileModal: document.getElementById('view-profile-modal'),
             closeViewProfileModal: document.getElementById('close-view-profile-modal'),
             viewProfilePic: document.getElementById('view-profile-pic'),
             viewProfileName: document.getElementById('view-profile-name'),
             viewProfileBio: document.getElementById('view-profile-bio'),
 
-            // Modais de Treino e Feed
             feedbackModal: document.getElementById('feedback-modal'),
             closeFeedbackModal: document.getElementById('close-feedback-modal'),
             feedbackForm: document.getElementById('feedback-form'),
@@ -176,13 +171,11 @@ const AppPrincipal = {
                         if(AppPrincipal.elements.appContainer) AppPrincipal.elements.appContainer.classList.remove('hidden');
 
                         if (AppPrincipal.state.adminUIDs[uid]) {
-                            // MODO ADMIN: Libera menu do Financeiro E menu do Seu Próprio Treino
                             AppPrincipal.state.viewMode = 'admin';
                             if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.classList.remove('hidden');
                             if(AppPrincipal.elements.navMeuTreinoBtn) AppPrincipal.elements.navMeuTreinoBtn.classList.remove('hidden');
                             document.body.classList.add('admin-view');
                         } else {
-                            // MODO ATLETA COMUM
                             AppPrincipal.state.viewMode = 'atleta';
                             if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.classList.add('hidden');
                             if(AppPrincipal.elements.navMeuTreinoBtn) AppPrincipal.elements.navMeuTreinoBtn.classList.add('hidden');
@@ -339,14 +332,13 @@ const AppPrincipal = {
                     if(typeof AdminPanel !== 'undefined') AdminPanel.init(AppPrincipal.state.currentUser, AppPrincipal.state.db);
                 }
             } else {
-                // Se for atleta normal, Planilha já cai na visão dele
                 const template = document.getElementById('atleta-panel-template');
                 if(template) {
                     AppPrincipal.elements.mainContent.appendChild(template.content.cloneNode(true));
                     if(typeof AtletaPanel !== 'undefined') AtletaPanel.init(AppPrincipal.state.currentUser, AppPrincipal.state.db, AppPrincipal.state.userData);
                 }
             }
-        } else if (viewName === 'meu-treino') { // NOVO FLUXO PARA O ADMIN VER SEU PRÓPRIO TREINO
+        } else if (viewName === 'meu-treino') { 
             if(AppPrincipal.elements.navMeuTreinoBtn) AppPrincipal.elements.navMeuTreinoBtn.classList.add('active');
             const template = document.getElementById('atleta-panel-template');
             if(template) {
@@ -611,22 +603,20 @@ const AppPrincipal = {
             });
     },
 
-    saveIaAnalysis: async () => {} // mantido vázio para compilação caso precise depois
+    saveIaAnalysis: async () => {}
 };
 
 // ===================================================================
-// MOTOR GPS NATIVO (WAKE LOCK + TELA APAGADA)
+// MOTOR GPS NATIVO PREMIUM (UI STRAVA + WAKE LOCK)
 // ===================================================================
 window.GPSTracker = {
     map: null, polyline: null, marker: null, watchId: null, timerInterval: null, wakeLock: null,
     positions: [], totalDistance: 0, seconds: 0, isRunning: false, mapsLoaded: false,
 
-    // SOLUÇÃO PARA A TELA NÃO APAGAR DURANTE O TREINO
     requestWakeLock: async () => {
         try {
             if ('wakeLock' in navigator) {
                 window.GPSTracker.wakeLock = await navigator.wakeLock.request('screen');
-                console.log('Wake Lock Ativado: A tela não vai apagar.');
             }
         } catch (err) {
             console.error('Falha no Wake Lock:', err);
@@ -636,7 +626,6 @@ window.GPSTracker = {
         if (window.GPSTracker.wakeLock !== null) {
             window.GPSTracker.wakeLock.release().then(() => {
                 window.GPSTracker.wakeLock = null;
-                console.log('Wake Lock Desativado.');
             });
         }
     },
@@ -654,14 +643,32 @@ window.GPSTracker = {
     },
     onMapsLoaded: () => {
         window.GPSTracker.mapsLoaded = true;
+        
+        // Estilo escuro para o mapa (premium look)
+        const darkMapStyle = [
+            { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+            { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+            { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+            { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
+            { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] }
+        ];
+
         window.GPSTracker.map = new google.maps.Map(document.getElementById('gps-map'), {
-            zoom: 16, center: {lat: -23.5505, lng: -46.6333}, disableDefaultUI: true, mapId: 'LERUNNERS_GPS'
+            zoom: 16, center: {lat: -23.5505, lng: -46.6333}, disableDefaultUI: true, mapId: 'LERUNNERS_GPS',
+            styles: darkMapStyle
         });
         window.GPSTracker.polyline = new google.maps.Polyline({
             map: window.GPSTracker.map, strokeColor: '#fc4c02', strokeWeight: 6, strokeOpacity: 0.8
         });
+        
         window.GPSTracker.marker = new google.maps.Marker({
-            map: window.GPSTracker.map, icon: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+            map: window.GPSTracker.map, 
+            icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 7, fillColor: '#fc4c02', fillOpacity: 1, strokeColor: 'white', strokeWeight: 2
+            }
         });
         
         if(navigator.geolocation) {
@@ -677,14 +684,16 @@ window.GPSTracker = {
         window.GPSTracker.initGoogleMaps();
     },
     close: () => {
-        if(window.GPSTracker.isRunning) window.GPSTracker.stop(false);
+        if(window.GPSTracker.isRunning) {
+            if(!confirm("A corrida está em andamento. Tem certeza que deseja fechar? O progresso será perdido.")) return;
+            window.GPSTracker.stop(false);
+        }
         document.getElementById('gps-tracker-modal').classList.add('hidden');
     },
     start: () => {
         if(window.GPSTracker.isRunning) return;
         window.GPSTracker.isRunning = true;
         
-        // Ativa o bloqueio de tela
         window.GPSTracker.requestWakeLock();
 
         document.getElementById('btn-gps-start').classList.add('hidden');
@@ -698,14 +707,33 @@ window.GPSTracker = {
 
         window.GPSTracker.watchId = navigator.geolocation.watchPosition(pos => {
             if(!window.google || !window.google.maps || !window.google.maps.geometry) return;
+            
+            const accuracy = pos.coords.accuracy;
+            
+            // HUD de Precisão do GPS (Estilo Strava)
+            const signalDot = document.getElementById('gps-signal-dot');
+            const signalText = document.getElementById('gps-signal-text');
+            if(accuracy < 10) {
+                signalDot.className = 'signal-dot good'; signalText.innerText = 'GPS Forte';
+            } else if (accuracy < 30) {
+                signalDot.className = 'signal-dot ok'; signalText.innerText = 'GPS Médio';
+            } else {
+                signalDot.className = 'signal-dot'; signalText.innerText = `GPS Fraco (${Math.round(accuracy)}m)`;
+            }
+
+            // Ignora pulos malucos de GPS quando o sinal tá ruim
+            if (accuracy > 30) return;
 
             const newPos = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
             
             if(window.GPSTracker.positions.length > 0) {
                 const lastPos = window.GPSTracker.positions[window.GPSTracker.positions.length - 1];
                 const dist = google.maps.geometry.spherical.computeDistanceBetween(lastPos, newPos);
-                // Filtro para ignorar erros malucos de GPS (pulos gigantes) e ignorar tremores < 1 metro
-                if(dist > 1 && dist < 50) window.GPSTracker.totalDistance += dist;
+                
+                // Filtro de ruido: Menos que 1 metro é você tremendo o celular parado. Mais que 60m por segundo é teletransporte de erro
+                if(dist > 1 && dist < 60) {
+                    window.GPSTracker.totalDistance += dist;
+                }
             }
             
             window.GPSTracker.positions.push(newPos);
@@ -717,31 +745,35 @@ window.GPSTracker = {
             window.GPSTracker.updateUI();
         }, err => {
             console.error("GPS Error:", err); 
+            document.getElementById('gps-signal-dot').className = 'signal-dot';
+            document.getElementById('gps-signal-text').innerText = 'Sem Sinal';
         }, {enableHighAccuracy: true, maximumAge: 0, timeout: 5000});
     },
     pause: () => {
         window.GPSTracker.isRunning = false;
         clearInterval(window.GPSTracker.timerInterval);
         navigator.geolocation.clearWatch(window.GPSTracker.watchId);
-        window.GPSTracker.releaseWakeLock(); // Libera a tela
+        window.GPSTracker.releaseWakeLock(); 
         
         const pauseBtn = document.getElementById('btn-gps-pause');
-        pauseBtn.innerHTML = "<i class='bx bx-play'></i>";
+        pauseBtn.innerHTML = "<i class='bx bx-play' style='font-size: 3rem;'></i>";
         pauseBtn.onclick = window.GPSTracker.resume;
-        pauseBtn.style.backgroundColor = "var(--success-color)";
+        pauseBtn.style.backgroundColor = "#28a745"; // Verde para dar a ideia de voltar
+        pauseBtn.style.color = "white";
     },
     resume: () => {
         const pauseBtn = document.getElementById('btn-gps-pause');
-        pauseBtn.innerHTML = "<i class='bx bx-pause'></i>";
+        pauseBtn.innerHTML = "<i class='bx bx-pause' style='font-size: 3rem;'></i>";
         pauseBtn.onclick = window.GPSTracker.pause;
-        pauseBtn.style.backgroundColor = "var(--warning-color)";
+        pauseBtn.style.backgroundColor = "#ffc107";
+        pauseBtn.style.color = "#333";
         window.GPSTracker.start();
     },
     stop: (askToSave = true) => {
         window.GPSTracker.isRunning = false;
         clearInterval(window.GPSTracker.timerInterval);
         if(window.GPSTracker.watchId) navigator.geolocation.clearWatch(window.GPSTracker.watchId);
-        window.GPSTracker.releaseWakeLock(); // Libera a tela
+        window.GPSTracker.releaseWakeLock(); 
         
         if(askToSave && window.GPSTracker.totalDistance > 50) { 
             if(confirm("Treino finalizado! Deseja guardar na sua planilha e publicar no Feed?")) {
@@ -751,6 +783,7 @@ window.GPSTracker = {
                 window.GPSTracker.close();
             }
         } else {
+            if(askToSave) alert("Treino muito curto (menos de 50 metros). Não será salvo.");
             window.GPSTracker.reset();
             window.GPSTracker.close();
         }
@@ -759,10 +792,15 @@ window.GPSTracker = {
         const h = Math.floor(window.GPSTracker.seconds / 3600);
         const m = Math.floor((window.GPSTracker.seconds % 3600) / 60);
         const s = window.GPSTracker.seconds % 60;
-        document.getElementById('gps-time').innerText = `${h > 0 ? h+':' : ''}${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        
+        // Formato Premium de tempo 00:00 ou 00:00:00
+        let timeString = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        if (h > 0) timeString = `${h.toString().padStart(2,'0')}:${timeString}`;
+        
+        document.getElementById('gps-time').innerText = timeString;
         
         const km = (window.GPSTracker.totalDistance / 1000);
-        document.getElementById('gps-distance').innerHTML = `${km.toFixed(2)} <span style="font-size:0.8rem">km</span>`;
+        document.getElementById('gps-distance').innerText = km.toFixed(2);
         
         if(km > 0.05) { 
             const paceMinPerKm = (window.GPSTracker.seconds / 60) / km;
@@ -782,16 +820,20 @@ window.GPSTracker = {
         document.getElementById('btn-gps-stop').classList.add('hidden');
         
         const pauseBtn = document.getElementById('btn-gps-pause');
-        pauseBtn.innerHTML = "<i class='bx bx-pause'></i>";
+        pauseBtn.innerHTML = "<i class='bx bx-pause' style='font-size: 3rem;'></i>";
         pauseBtn.onclick = window.GPSTracker.pause;
-        pauseBtn.style.backgroundColor = "var(--warning-color)";
+        pauseBtn.style.backgroundColor = "#ffc107";
+        pauseBtn.style.color = "#333";
 
-        window.GPSTracker.updateUI();
-        document.getElementById('gps-distance').innerHTML = `0.00 <span style="font-size:0.8rem">km</span>`;
+        document.getElementById('gps-time').innerText = `00:00`;
+        document.getElementById('gps-distance').innerText = `0.00`;
         document.getElementById('gps-pace').innerText = `--:--`;
+        
+        document.getElementById('gps-signal-dot').className = 'signal-dot';
+        document.getElementById('gps-signal-text').innerText = 'Aguardando Início...';
     },
     saveWorkout: async () => {
-        const title = prompt("Dê um título para a sua corrida:", "Corrida Livre (GPS)");
+        const title = prompt("Dê um título para a sua corrida:", "Corrida Noturna (GPS Nativo)");
         if(!title) { window.GPSTracker.resume(); return; }
         
         const km = (window.GPSTracker.totalDistance / 1000).toFixed(2);
@@ -852,31 +894,21 @@ const AuthLogic = {
         AuthLogic.auth.onAuthStateChanged(AuthLogic.handleLoginGuard);
     },
     setupListeners: () => {
-        if(AuthLogic.elements.toggleToRegister) AuthLogic.elements.toggleToRegister.addEventListener('click', (e) => { e.preventDefault(); AuthLogic.showView('register'); });
-        if(AuthLogic.elements.toggleToLogin) AuthLogic.elements.toggleToLogin.addEventListener('click', (e) => { e.preventDefault(); AuthLogic.showView('login'); });
-        if(AuthLogic.elements.loginForm) AuthLogic.elements.loginForm.addEventListener('submit', AuthLogic.handleLogin);
-        if(AuthLogic.elements.registerForm) AuthLogic.elements.registerForm.addEventListener('submit', AuthLogic.handleRegister);
+        AuthLogic.elements.toggleToRegister.addEventListener('click', (e) => { e.preventDefault(); AuthLogic.showView('register'); });
+        AuthLogic.elements.toggleToLogin.addEventListener('click', (e) => { e.preventDefault(); AuthLogic.showView('login'); });
+        AuthLogic.elements.loginForm.addEventListener('submit', AuthLogic.handleLogin);
+        AuthLogic.elements.registerForm.addEventListener('submit', AuthLogic.handleRegister);
         if(AuthLogic.elements.btnLogoutPending) AuthLogic.elements.btnLogoutPending.addEventListener('click', () => AuthLogic.auth.signOut());
     },
     showView: (viewName) => {
-        if(AuthLogic.elements.loginForm) AuthLogic.elements.loginForm.classList.add('hidden');
-        if(AuthLogic.elements.registerForm) AuthLogic.elements.registerForm.classList.add('hidden');
+        AuthLogic.elements.loginForm.classList.add('hidden');
+        AuthLogic.elements.registerForm.classList.add('hidden');
         if(AuthLogic.elements.pendingView) AuthLogic.elements.pendingView.classList.add('hidden');
-        
-        const toggles = document.querySelectorAll('.toggle-link');
-        toggles.forEach(t => t.classList.add('hidden'));
-
-        if (viewName === 'login' && AuthLogic.elements.loginForm) { 
-            AuthLogic.elements.loginForm.classList.remove('hidden'); 
-            if(toggles[0]) toggles[0].classList.remove('hidden'); 
-        } 
-        else if (viewName === 'register' && AuthLogic.elements.registerForm) { 
-            AuthLogic.elements.registerForm.classList.remove('hidden'); 
-            if(toggles[1]) toggles[1].classList.remove('hidden'); 
-        } 
-        else if (viewName === 'pending' && AuthLogic.elements.pendingView) { 
-            AuthLogic.elements.pendingView.classList.remove('hidden'); 
-        }
+        document.querySelector('.toggle-link:nth-of-type(1)').classList.add('hidden');
+        document.querySelector('.toggle-link:nth-of-type(2)').classList.add('hidden');
+        if (viewName === 'login') { AuthLogic.elements.loginForm.classList.remove('hidden'); document.querySelector('.toggle-link:nth-of-type(1)').classList.remove('hidden'); } 
+        else if (viewName === 'register') { AuthLogic.elements.registerForm.classList.remove('hidden'); document.querySelector('.toggle-link:nth-of-type(2)').classList.remove('hidden'); } 
+        else if (viewName === 'pending') { if(AuthLogic.elements.pendingView) AuthLogic.elements.pendingView.classList.remove('hidden'); }
     },
     handleLogin: (e) => {
         e.preventDefault();

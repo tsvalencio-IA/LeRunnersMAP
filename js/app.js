@@ -1,5 +1,5 @@
 /* =================================================================== */
-/* APP.JS - VERSÃO MESTRA 11.8 (GPS TRACKER PREMIUM UI)
+/* APP.JS - VERSÃO MESTRA 11.9 (CORREÇÃO CRÍTICA TELA DE LOGIN)
 /* LERUNNERS - SISTEMA DE TREINOS E GPS TRACKER
 /* =================================================================== */
 
@@ -710,7 +710,6 @@ window.GPSTracker = {
             
             const accuracy = pos.coords.accuracy;
             
-            // HUD de Precisão do GPS (Estilo Strava)
             const signalDot = document.getElementById('gps-signal-dot');
             const signalText = document.getElementById('gps-signal-text');
             if(accuracy < 10) {
@@ -721,7 +720,6 @@ window.GPSTracker = {
                 signalDot.className = 'signal-dot'; signalText.innerText = `GPS Fraco (${Math.round(accuracy)}m)`;
             }
 
-            // Ignora pulos malucos de GPS quando o sinal tá ruim
             if (accuracy > 30) return;
 
             const newPos = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
@@ -730,7 +728,6 @@ window.GPSTracker = {
                 const lastPos = window.GPSTracker.positions[window.GPSTracker.positions.length - 1];
                 const dist = google.maps.geometry.spherical.computeDistanceBetween(lastPos, newPos);
                 
-                // Filtro de ruido: Menos que 1 metro é você tremendo o celular parado. Mais que 60m por segundo é teletransporte de erro
                 if(dist > 1 && dist < 60) {
                     window.GPSTracker.totalDistance += dist;
                 }
@@ -758,7 +755,7 @@ window.GPSTracker = {
         const pauseBtn = document.getElementById('btn-gps-pause');
         pauseBtn.innerHTML = "<i class='bx bx-play' style='font-size: 3rem;'></i>";
         pauseBtn.onclick = window.GPSTracker.resume;
-        pauseBtn.style.backgroundColor = "#28a745"; // Verde para dar a ideia de voltar
+        pauseBtn.style.backgroundColor = "#28a745"; 
         pauseBtn.style.color = "white";
     },
     resume: () => {
@@ -793,7 +790,6 @@ window.GPSTracker = {
         const m = Math.floor((window.GPSTracker.seconds % 3600) / 60);
         const s = window.GPSTracker.seconds % 60;
         
-        // Formato Premium de tempo 00:00 ou 00:00:00
         let timeString = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
         if (h > 0) timeString = `${h.toString().padStart(2,'0')}:${timeString}`;
         
@@ -833,7 +829,7 @@ window.GPSTracker = {
         document.getElementById('gps-signal-text').innerText = 'Aguardando Início...';
     },
     saveWorkout: async () => {
-        const title = prompt("Dê um título para a sua corrida:", "Corrida Noturna (GPS Nativo)");
+        const title = prompt("Dê um título para a sua corrida:", "Corrida Livre (GPS Nativo)");
         if(!title) { window.GPSTracker.resume(); return; }
         
         const km = (window.GPSTracker.totalDistance / 1000).toFixed(2);
@@ -894,25 +890,36 @@ const AuthLogic = {
         AuthLogic.auth.onAuthStateChanged(AuthLogic.handleLoginGuard);
     },
     setupListeners: () => {
-        AuthLogic.elements.toggleToRegister.addEventListener('click', (e) => { e.preventDefault(); AuthLogic.showView('register'); });
-        AuthLogic.elements.toggleToLogin.addEventListener('click', (e) => { e.preventDefault(); AuthLogic.showView('login'); });
-        AuthLogic.elements.loginForm.addEventListener('submit', AuthLogic.handleLogin);
-        AuthLogic.elements.registerForm.addEventListener('submit', AuthLogic.handleRegister);
+        if(AuthLogic.elements.toggleToRegister) AuthLogic.elements.toggleToRegister.addEventListener('click', (e) => { e.preventDefault(); AuthLogic.showView('register'); });
+        if(AuthLogic.elements.toggleToLogin) AuthLogic.elements.toggleToLogin.addEventListener('click', (e) => { e.preventDefault(); AuthLogic.showView('login'); });
+        if(AuthLogic.elements.loginForm) AuthLogic.elements.loginForm.addEventListener('submit', AuthLogic.handleLogin);
+        if(AuthLogic.elements.registerForm) AuthLogic.elements.registerForm.addEventListener('submit', AuthLogic.handleRegister);
         if(AuthLogic.elements.btnLogoutPending) AuthLogic.elements.btnLogoutPending.addEventListener('click', () => AuthLogic.auth.signOut());
     },
+    
+    // --- CORREÇÃO CRÍTICA AQUI ---
     showView: (viewName) => {
-        AuthLogic.elements.loginForm.classList.add('hidden');
-        AuthLogic.elements.registerForm.classList.add('hidden');
+        // Esconde todos os painéis com segurança
+        if(AuthLogic.elements.loginForm) AuthLogic.elements.loginForm.classList.add('hidden');
+        if(AuthLogic.elements.registerForm) AuthLogic.elements.registerForm.classList.add('hidden');
         if(AuthLogic.elements.pendingView) AuthLogic.elements.pendingView.classList.add('hidden');
-        document.querySelector('.toggle-link:nth-of-type(1)').classList.add('hidden');
-        document.querySelector('.toggle-link:nth-of-type(2)').classList.add('hidden');
-        if (viewName === 'login') { AuthLogic.elements.loginForm.classList.remove('hidden'); document.querySelector('.toggle-link:nth-of-type(1)').classList.remove('hidden'); } 
-        else if (viewName === 'register') { AuthLogic.elements.registerForm.classList.remove('hidden'); document.querySelector('.toggle-link:nth-of-type(2)').classList.remove('hidden'); } 
-        else if (viewName === 'pending') { if(AuthLogic.elements.pendingView) AuthLogic.elements.pendingView.classList.remove('hidden'); }
+        
+        // Exibe o painel correto
+        if (viewName === 'login' && AuthLogic.elements.loginForm) { 
+            AuthLogic.elements.loginForm.classList.remove('hidden'); 
+        } 
+        else if (viewName === 'register' && AuthLogic.elements.registerForm) { 
+            AuthLogic.elements.registerForm.classList.remove('hidden'); 
+        } 
+        else if (viewName === 'pending' && AuthLogic.elements.pendingView) { 
+            AuthLogic.elements.pendingView.classList.remove('hidden'); 
+        }
     },
+    
     handleLogin: (e) => {
         e.preventDefault();
-        const email = document.getElementById('loginEmail').value; const password = document.getElementById('loginPassword').value;
+        const email = document.getElementById('loginEmail').value; 
+        const password = document.getElementById('loginPassword').value;
         if(AuthLogic.elements.loginErrorMsg) AuthLogic.elements.loginErrorMsg.textContent = "Conectando...";
         AuthLogic.auth.signInWithEmailAndPassword(email, password).catch(err => {
             if(AuthLogic.elements.loginErrorMsg) AuthLogic.elements.loginErrorMsg.textContent = "Credenciais inválidas.";
@@ -921,11 +928,15 @@ const AuthLogic = {
     handleRegister: (e) => {
         e.preventDefault(); 
         if(AuthLogic.elements.registerErrorMsg) AuthLogic.elements.registerErrorMsg.textContent = "Aguarde...";
-        const name = document.getElementById('registerName').value; const email = document.getElementById('registerEmail').value; const password = document.getElementById('registerPassword').value;
-        if(password.length<6) {
+        const name = document.getElementById('registerName').value; 
+        const email = document.getElementById('registerEmail').value; 
+        const password = document.getElementById('registerPassword').value;
+        
+        if(password.length < 6) {
             if(AuthLogic.elements.registerErrorMsg) AuthLogic.elements.registerErrorMsg.textContent = "Senha mínima 6 caracteres.";
             return;
         }
+        
         AuthLogic.auth.createUserWithEmailAndPassword(email, password)
             .then((c) => AuthLogic.db.ref('pendingApprovals/'+c.user.uid).set({ name, email, requestDate: new Date().toISOString() }))
             .catch(e => {
@@ -934,16 +945,22 @@ const AuthLogic = {
     },
     handleLoginGuard: (user) => {
         if (!user) return AuthLogic.showView('login');
+        
         AuthLogic.db.ref('admins/' + user.uid).once('value').then(s => {
             if (s.exists() && s.val()) return window.location.href = 'app.html';
+            
             AuthLogic.db.ref('users/' + user.uid).once('value').then(s2 => {
                 if (s2.exists()) return window.location.href = 'app.html';
+                
                 AuthLogic.db.ref('pendingApprovals/' + user.uid).once('value').then(s3 => {
                     if (s3.exists()) { 
                         if(AuthLogic.elements.pendingEmailDisplay) AuthLogic.elements.pendingEmailDisplay.textContent = user.email; 
                         AuthLogic.showView('pending'); 
                     }
-                    else { AuthLogic.auth.signOut(); AuthLogic.showView('login'); }
+                    else { 
+                        AuthLogic.auth.signOut(); 
+                        AuthLogic.showView('login'); 
+                    }
                 });
             });
         }).catch(err => { console.error(err); });

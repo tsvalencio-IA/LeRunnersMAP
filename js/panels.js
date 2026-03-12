@@ -1,14 +1,16 @@
 /* =================================================================== */
-/* ARQUIVO DE MÓDULOS (V7.3 - COFRE DE APIS & STRAVA COMPLIANCE)
+/* PAINÉIS DA PLATAFORMA (ADMIN, ATLETA, FEED, FINANCEIRO)
+/* ARQUIVO 100% COMPLETO - MODO MESTRE *177
+/* INTEGRAÇÃO COM COFRE DE APIS E PREPARAÇÃO PARA GPS NATIVO
 /* =================================================================== */
 
 const AdminPanel = {
-    state: {},
+    state: { db: null, currentUser: null, selectedAthleteId: null, athletes: {} },
     elements: {},
 
     init: (user, db) => {
-        console.log("AdminPanel V7.3: Inicializado.");
-        AdminPanel.state = { db, currentUser: user, selectedAthleteId: null, athletes: {} };
+        AdminPanel.state.db = db;
+        AdminPanel.state.currentUser = user;
 
         AdminPanel.elements = {
             pendingList: document.getElementById('pending-list'),
@@ -18,820 +20,726 @@ const AdminPanel = {
             athleteDetailContent: document.getElementById('athlete-detail-content'),
             deleteAthleteBtn: document.getElementById('delete-athlete-btn'),
             
-            // Abas
             tabPrescreverBtn: document.querySelector('[data-tab="prescrever"]'),
             tabKpisBtn: document.querySelector('[data-tab="kpis"]'),
-            tabConfiguracoesBtn: document.querySelector('[data-tab="configuracoes"]'), // NOVO COFRE
+            tabConfiguracoesBtn: document.querySelector('[data-tab="configuracoes"]'),
             
             adminTabPrescrever: document.getElementById('admin-tab-prescrever'),
             adminTabKpis: document.getElementById('admin-tab-kpis'),
-            adminTabConfiguracoes: document.getElementById('admin-tab-configuracoes'), // NOVO COFRE
+            adminTabConfiguracoes: document.getElementById('admin-tab-configuracoes'),
             
-            // Cofre de APIs
             apiConfigForm: document.getElementById('api-config-form'),
             configMapsKey: document.getElementById('config-maps-key'),
             configGeminiKey: document.getElementById('config-gemini-key'),
             configCloudName: document.getElementById('config-cloud-name'),
             configCloudPreset: document.getElementById('config-cloud-preset'),
 
-            // Conteúdo Aba 1 (Prescrição)
             addWorkoutForm: document.getElementById('add-workout-form'),
-            workoutDate: document.getElementById('workout-date'),
-            workoutTitle: document.getElementById('workout-title'),
-            workoutModalidade: document.getElementById('workout-modalidade'),
-            workoutTipo: document.getElementById('workout-tipo-treino'),
-            workoutIntensidade: document.getElementById('workout-intensidade'),
-            workoutPercurso: document.getElementById('workout-percurso'),
-            workoutDistancia: document.getElementById('workout-distancia'),
-            workoutTempo: document.getElementById('workout-tempo'),
-            workoutPace: document.getElementById('workout-pace'),
-            workoutVelocidade: document.getElementById('workout-velocidade'),
-            workoutObservacoes: document.getElementById('workout-observacoes'),
             workoutsList: document.getElementById('workouts-list'),
-            
-            // Conteúdo Aba 2 (IA)
             analyzeAthleteBtnIa: document.getElementById('analyze-athlete-btn-ia'),
             iaHistoryList: document.getElementById('ia-history-list')
         };
 
+        AdminPanel.setupListeners();
         AdminPanel.loadPendingApprovals();
         AdminPanel.loadAthletes();
-        AdminPanel.setupListeners();
-        AdminPanel.setupTabs();
-        AdminPanel.loadConfigToForm(); 
-    },
-
-    setupTabs: () => {
-        const tabs = [
-            { btn: AdminPanel.elements.tabPrescreverBtn, content: AdminPanel.elements.adminTabPrescrever },
-            { btn: AdminPanel.elements.tabKpisBtn, content: AdminPanel.elements.adminTabKpis },
-            { btn: AdminPanel.elements.tabConfiguracoesBtn, content: AdminPanel.elements.adminTabConfiguracoes } 
-        ];
-
-        tabs.forEach(t => {
-            if(t.btn) {
-                t.btn.addEventListener('click', () => {
-                    tabs.forEach(x => { 
-                        if(x.btn) x.btn.classList.remove('active'); 
-                        if(x.content) x.content.classList.remove('active'); 
-                    });
-                    t.btn.classList.add('active');
-                    if(t.content) t.content.classList.add('active');
-                });
-            }
-        });
-    },
-
-    loadConfigToForm: () => {
-        AdminPanel.state.db.ref('config/apiKeys').once('value', snap => {
-            if(snap.exists()) {
-                const keys = snap.val();
-                if(AdminPanel.elements.configMapsKey) AdminPanel.elements.configMapsKey.value = keys.mapsKey || "";
-                if(AdminPanel.elements.configGeminiKey) AdminPanel.elements.configGeminiKey.value = keys.geminiKey || "";
-                if(AdminPanel.elements.configCloudName) AdminPanel.elements.configCloudName.value = keys.cloudinaryName || "";
-                if(AdminPanel.elements.configCloudPreset) AdminPanel.elements.configCloudPreset.value = keys.cloudinaryPreset || "";
-            }
-        });
-    },
-
-    handleConfigSubmit: (e) => {
-        e.preventDefault();
-        const btn = e.target.querySelector('button');
-        const oldText = btn.innerHTML;
-        btn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> Salvando...";
-        btn.disabled = true;
-
-        const payload = {
-            mapsKey: AdminPanel.elements.configMapsKey.value.trim(),
-            geminiKey: AdminPanel.elements.configGeminiKey.value.trim(),
-            cloudinaryName: AdminPanel.elements.configCloudName.value.trim(),
-            cloudinaryPreset: AdminPanel.elements.configCloudPreset.value.trim()
-        };
-
-        AdminPanel.state.db.ref('config/apiKeys').update(payload)
-            .then(() => {
-                alert("Configurações salvas e criptografadas no cofre de dados!");
-            })
-            .catch(err => alert("Erro ao salvar: " + err.message))
-            .finally(() => {
-                btn.innerHTML = oldText;
-                btn.disabled = false;
-            });
+        AdminPanel.loadApiVault();
     },
 
     setupListeners: () => {
-        if(AdminPanel.elements.apiConfigForm) {
-            AdminPanel.elements.apiConfigForm.addEventListener('submit', AdminPanel.handleConfigSubmit);
+        if (AdminPanel.elements.athleteSearch) {
+            AdminPanel.elements.athleteSearch.addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                document.querySelectorAll('.athlete-item').forEach(item => {
+                    const name = item.textContent.toLowerCase();
+                    item.style.display = name.includes(term) ? 'flex' : 'none';
+                });
+            });
         }
 
-        AdminPanel.elements.athleteSearch.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
-            const items = AdminPanel.elements.athleteList.querySelectorAll('.athlete-list-item');
-            items.forEach(item => {
-                const name = item.querySelector('span').textContent.toLowerCase();
-                item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
-            });
-        });
+        const tabs = [
+            { btn: AdminPanel.elements.tabPrescreverBtn, content: AdminPanel.elements.adminTabPrescrever },
+            { btn: AdminPanel.elements.tabKpisBtn, content: AdminPanel.elements.adminTabKpis },
+            { btn: AdminPanel.elements.tabConfiguracoesBtn, content: AdminPanel.elements.adminTabConfiguracoes }
+        ];
 
-        AdminPanel.elements.addWorkoutForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            if (!AdminPanel.state.selectedAthleteId) return alert('Selecione um atleta!');
-
-            const date = AdminPanel.elements.workoutDate.value;
-            const title = AdminPanel.elements.workoutTitle.value;
-            const modalidade = AdminPanel.elements.workoutModalidade.value;
-            const tipo = AdminPanel.elements.workoutTipo.value;
-            const intensidade = AdminPanel.elements.workoutIntensidade.value;
-            const percurso = AdminPanel.elements.workoutPercurso.value;
-            const distancia = AdminPanel.elements.workoutDistancia.value;
-            const tempo = AdminPanel.elements.workoutTempo.value;
-            const pace = AdminPanel.elements.workoutPace.value;
-            const velocidade = AdminPanel.elements.workoutVelocidade.value;
-            const observacoes = AdminPanel.elements.workoutObservacoes.value;
-
-            let detailsHtml = `🎯 Modalidade: ${modalidade}\n`;
-            detailsHtml += `🏃 Tipo: ${tipo}\n`;
-            detailsHtml += `🔥 Intensidade: ${intensidade}\n`;
-            detailsHtml += `🗺️ Percurso: ${percurso}\n`;
-            if (distancia) detailsHtml += `📍 Distância: ${distancia}\n`;
-            if (tempo) detailsHtml += `⏱️ Tempo: ${tempo}\n`;
-            if (pace) detailsHtml += `⚡ Pace: ${pace}\n`;
-            if (velocidade) detailsHtml += `🏎️ Velocidade: ${velocidade}\n`;
-            if (observacoes) detailsHtml += `\n📝 Observações:\n${observacoes}`;
-
-            AdminPanel.state.db.ref(`workouts/${AdminPanel.state.selectedAthleteId}`).push({
-                date: date,
-                title: title,
-                body: detailsHtml,
-                status: 'planejado',
-                timestamp: Date.now()
-            }).then(() => {
-                AdminPanel.elements.addWorkoutForm.reset();
-            });
-        });
-
-        AdminPanel.elements.deleteAthleteBtn.addEventListener('click', () => {
-            if (!AdminPanel.state.selectedAthleteId) return;
-            if (confirm(`Tem certeza que deseja excluir o atleta ${AdminPanel.state.athletes[AdminPanel.state.selectedAthleteId].name}?`)) {
-                const uid = AdminPanel.state.selectedAthleteId;
-                AdminPanel.state.db.ref(`users/${uid}`).remove();
-                AdminPanel.state.db.ref(`workouts/${uid}`).remove();
-                AdminPanel.state.db.ref(`clinicalAnalysis/${uid}`).remove(); 
-                AdminPanel.state.selectedAthleteId = null;
-                AdminPanel.elements.athleteDetailContent.classList.add('hidden');
-                AdminPanel.elements.athleteDetailName.textContent = "Selecione um Atleta";
-                AdminPanel.elements.addWorkoutForm.reset();
-                AdminPanel.elements.workoutsList.innerHTML = '';
+        tabs.forEach(tab => {
+            if (tab.btn) {
+                tab.btn.addEventListener('click', () => {
+                    tabs.forEach(t => {
+                        if(t.btn) t.btn.classList.remove('active');
+                        if(t.content) t.content.classList.remove('active');
+                    });
+                    tab.btn.classList.add('active');
+                    if(tab.content) tab.content.classList.add('active');
+                });
             }
         });
 
-        AdminPanel.elements.analyzeAthleteBtnIa.addEventListener('click', () => {
-            if(AdminPanel.state.selectedAthleteId && typeof AppPrincipal !== 'undefined') {
-                AppPrincipal.generateIaAnalysis(AdminPanel.state.selectedAthleteId);
+        if (AdminPanel.elements.addWorkoutForm) {
+            AdminPanel.elements.addWorkoutForm.onsubmit = AdminPanel.handleAddWorkout;
+        }
+
+        if (AdminPanel.elements.deleteAthleteBtn) {
+            AdminPanel.elements.deleteAthleteBtn.onclick = AdminPanel.handleDeleteAthlete;
+        }
+
+        if (AdminPanel.elements.apiConfigForm) {
+            AdminPanel.elements.apiConfigForm.onsubmit = AdminPanel.handleSaveApiVault;
+        }
+
+        if(AdminPanel.elements.analyzeAthleteBtnIa) {
+            AdminPanel.elements.analyzeAthleteBtnIa.onclick = AdminPanel.generateKpiAnalysis;
+        }
+    },
+
+    loadApiVault: () => {
+        AdminPanel.state.db.ref('config/apiKeys').once('value', snapshot => {
+            if(snapshot.exists()) {
+                const keys = snapshot.val();
+                if(AdminPanel.elements.configMapsKey) AdminPanel.elements.configMapsKey.value = keys.mapsKey || '';
+                if(AdminPanel.elements.configGeminiKey) AdminPanel.elements.configGeminiKey.value = keys.geminiKey || '';
+                if(AdminPanel.elements.configCloudName) AdminPanel.elements.configCloudName.value = keys.cloudName || '';
+                if(AdminPanel.elements.configCloudPreset) AdminPanel.elements.configCloudPreset.value = keys.cloudPreset || '';
             }
+        });
+    },
+
+    handleSaveApiVault: (e) => {
+        e.preventDefault();
+        const keys = {
+            mapsKey: AdminPanel.elements.configMapsKey.value.trim(),
+            geminiKey: AdminPanel.elements.configGeminiKey.value.trim(),
+            cloudName: AdminPanel.elements.configCloudName.value.trim(),
+            cloudPreset: AdminPanel.elements.configCloudPreset.value.trim()
+        };
+
+        AdminPanel.state.db.ref('config/apiKeys').set(keys).then(() => {
+            alert('Chaves salvas no Cofre com sucesso! Recarregue a página para aplicar o GPS Nativo e as IAs.');
+            window.location.reload();
+        }).catch(err => {
+            alert('Erro ao salvar no cofre: ' + err.message);
         });
     },
 
     loadPendingApprovals: () => {
         AdminPanel.state.db.ref('pendingApprovals').on('value', snapshot => {
+            if(!AdminPanel.elements.pendingList) return;
             AdminPanel.elements.pendingList.innerHTML = '';
-            if (snapshot.exists()) {
-                snapshot.forEach(child => {
-                    const data = child.val();
-                    const div = document.createElement('div');
-                    div.className = 'pending-item';
-                    div.innerHTML = `
-                        <div class="pending-item-info">
-                            <strong>${data.name}</strong><br>
-                            ${data.email}
-                        </div>
-                        <div class="pending-item-actions">
-                            <button class="btn btn-success btn-small" onclick="AdminPanel.approveUser('${child.key}', '${data.name}', '${data.email}')">Aprovar</button>
-                            <button class="btn btn-danger btn-small" onclick="AdminPanel.rejectUser('${child.key}')">Rejeitar</button>
-                        </div>
-                    `;
-                    AdminPanel.elements.pendingList.appendChild(div);
-                });
-            } else {
-                AdminPanel.elements.pendingList.innerHTML = '<p>Nenhuma aprovação pendente.</p>';
+            if (!snapshot.exists()) {
+                AdminPanel.elements.pendingList.innerHTML = '<p class="empty-state">Nenhuma aprovação pendente.</p>';
+                return;
             }
+            snapshot.forEach(child => {
+                const data = child.val();
+                const uid = child.key;
+                const div = document.createElement('div');
+                div.className = 'pending-item';
+                div.innerHTML = `
+                    <div><strong>${data.name}</strong><br><small>${data.email}</small></div>
+                    <div class="pending-item-actions">
+                        <button class="btn btn-success btn-small" onclick="AdminPanel.approveUser('${uid}', '${data.name}', '${data.email}')"><i class='bx bx-check'></i> Aprovar</button>
+                        <button class="btn btn-danger btn-small" onclick="AdminPanel.rejectUser('${uid}')"><i class='bx bx-x'></i> Rejeitar</button>
+                    </div>
+                `;
+                AdminPanel.elements.pendingList.appendChild(div);
+            });
         });
     },
 
     approveUser: (uid, name, email) => {
-        AdminPanel.state.db.ref(`users/${uid}`).set({ name, email, role: 'atleta' })
-            .then(() => AdminPanel.state.db.ref(`pendingApprovals/${uid}`).remove());
+        const userData = { name: name, email: email, role: 'atleta', createdAt: new Date().toISOString() };
+        AdminPanel.state.db.ref('users/' + uid).set(userData).then(() => {
+            AdminPanel.state.db.ref('pendingApprovals/' + uid).remove();
+        });
     },
 
     rejectUser: (uid) => {
-        AdminPanel.state.db.ref(`pendingApprovals/${uid}`).remove();
+        if(confirm("Tem certeza que deseja rejeitar este cadastro?")) {
+            AdminPanel.state.db.ref('pendingApprovals/' + uid).remove();
+        }
     },
 
     loadAthletes: () => {
-        AdminPanel.state.db.ref('users').on('value', snapshot => {
+        AdminPanel.state.db.ref('users').orderByChild('role').equalTo('atleta').on('value', snapshot => {
+            if(!AdminPanel.elements.athleteList) return;
             AdminPanel.elements.athleteList.innerHTML = '';
             AdminPanel.state.athletes = {};
-            if (snapshot.exists()) {
-                snapshot.forEach(child => {
-                    if (!AdminPanel.state.adminUIDs[child.key]) {
-                        const data = child.val();
-                        AdminPanel.state.athletes[child.key] = data;
-                        const div = document.createElement('div');
-                        div.className = 'athlete-list-item';
-                        
-                        const photoHtml = data.photoUrl ? 
-                            `<img src="${data.photoUrl}" style="width:30px; height:30px; border-radius:50%; object-fit:cover; margin-right:10px;">` :
-                            `<div style="width:30px; height:30px; border-radius:50%; background:var(--primary-color); color:white; display:flex; align-items:center; justify-content:center; margin-right:10px; font-weight:bold; font-size:12px;">${data.name.charAt(0)}</div>`;
-
-                        div.innerHTML = `<div style="display:flex; align-items:center;">${photoHtml} <span>${data.name}</span></div> <i class='bx bx-chevron-right'></i>`;
-                        div.onclick = () => AdminPanel.selectAthlete(child.key, div);
-                        AdminPanel.elements.athleteList.appendChild(div);
-                    }
-                });
+            
+            if (!snapshot.exists()) {
+                AdminPanel.elements.athleteList.innerHTML = '<p class="empty-state">Nenhum atleta encontrado.</p>';
+                return;
             }
+
+            snapshot.forEach(child => {
+                const uid = child.key;
+                const data = child.val();
+                AdminPanel.state.athletes[uid] = data;
+                
+                const div = document.createElement('div');
+                div.className = 'athlete-item';
+                div.innerHTML = `
+                    <div class="athlete-info">
+                        <img src="${data.photoUrl || 'https://placehold.co/150x150/4169E1/FFFFFF?text=' + data.name.charAt(0)}" alt="${data.name}" class="athlete-avatar">
+                        <span>${data.name}</span>
+                    </div>
+                    <i class='bx bx-chevron-right'></i>
+                `;
+                div.onclick = () => {
+                    document.querySelectorAll('.athlete-item').forEach(el => el.classList.remove('active'));
+                    div.classList.add('active');
+                    AdminPanel.selectAthlete(uid, data.name);
+                };
+                AdminPanel.elements.athleteList.appendChild(div);
+            });
         });
     },
 
-    selectAthlete: (uid, element) => {
-        document.querySelectorAll('.athlete-list-item').forEach(el => el.classList.remove('selected'));
-        if (element) element.classList.add('selected');
-
+    selectAthlete: (uid, name) => {
         AdminPanel.state.selectedAthleteId = uid;
-        AdminPanel.elements.athleteDetailName.textContent = `Atleta: ${AdminPanel.state.athletes[uid].name}`;
-        AdminPanel.elements.athleteDetailContent.classList.remove('hidden');
-
-        AdminPanel.loadAthleteWorkouts(uid);
-        AdminPanel.loadAthleteIaHistory(uid);
+        if(AdminPanel.elements.athleteDetailName) AdminPanel.elements.athleteDetailName.textContent = name;
+        if(AdminPanel.elements.athleteDetailContent) AdminPanel.elements.athleteDetailContent.classList.remove('hidden');
+        AdminPanel.loadWorkoutsForSelected();
+        AdminPanel.loadIaHistory();
     },
 
-    loadAthleteWorkouts: (uid) => {
-        AdminPanel.state.db.ref(`workouts/${uid}`).orderByChild('date').on('value', snapshot => {
-            AdminPanel.elements.workoutsList.innerHTML = '';
-            if (snapshot.exists()) {
-                const workouts = [];
-                snapshot.forEach(child => { workouts.push({ id: child.key, ...child.val() }); });
-                workouts.reverse();
+    handleDeleteAthlete: () => {
+        const uid = AdminPanel.state.selectedAthleteId;
+        if(!uid) return;
+        if(confirm(`ATENÇÃO: Deseja realmente excluir este atleta e todos os seus treinos? Essa ação não pode ser desfeita.`)) {
+            AdminPanel.state.db.ref('users/' + uid).remove().then(() => {
+                AdminPanel.state.selectedAthleteId = null;
+                if(AdminPanel.elements.athleteDetailContent) AdminPanel.elements.athleteDetailContent.classList.add('hidden');
+                if(AdminPanel.elements.athleteDetailName) AdminPanel.elements.athleteDetailName.textContent = "Selecione um Atleta";
+            });
+        }
+    },
 
-                workouts.forEach(w => {
-                    const div = document.createElement('div');
-                    div.className = 'workout-card';
-                    
-                    const fDate = w.date.split('-').reverse().join('/');
-                    let statusHtml = `<span class="status-tag ${w.status}">${w.status.replace('_', ' ')}</span>`;
-                    
-                    div.innerHTML = `
-                        <div class="workout-card-header">
-                            <span class="date">${fDate}</span>
-                            <span class="title">${w.title}</span>
-                            ${statusHtml}
-                        </div>
-                        <div class="workout-card-body">
-                            <p>${escapeHtml(w.body || w.description || "")}</p>
-                            ${w.feedback ? `<div class="feedback-text"><strong>Feedback do Atleta:</strong><br>${escapeHtml(w.feedback)}</div>` : ''}
-                            ${w.photoUrl ? `<img src="${w.photoUrl}" class="workout-image" alt="Treino">` : ''}
-                            
-                            ${w.stravaData ? `
-                            <fieldset class="strava-data-display" style="display:block; margin-top:10px;">
-                                <legend><i class='bx bxl-strava'></i> Dados Extraídos</legend>
-                                <p>🎯 Distância: ${w.stravaData.distancia || '--'} km</p>
-                                <p>⏱️ Tempo: ${w.stravaData.tempo || '--'}</p>
-                                <p>⚡ Ritmo: ${w.stravaData.ritmo || '--'}</p>
-                            </fieldset>
-                            ` : ''}
-                        </div>
-                        <div class="workout-card-footer" style="justify-content: flex-end;">
-                             <button class="btn btn-danger btn-small" onclick="AdminPanel.deleteWorkout('${uid}', '${w.id}')"><i class='bx bx-trash'></i> Excluir Treino</button>
-                        </div>
-                    `;
-                    AdminPanel.elements.workoutsList.appendChild(div);
-                });
-            } else {
-                AdminPanel.elements.workoutsList.innerHTML = '<p style="color:#666; text-align:center;">Nenhum treino prescrito.</p>';
-            }
+    handleAddWorkout: (e) => {
+        e.preventDefault();
+        const uid = AdminPanel.state.selectedAthleteId;
+        if (!uid) return alert("Selecione um atleta primeiro.");
+
+        const payload = {
+            date: document.getElementById('workout-date').value,
+            title: document.getElementById('workout-title').value,
+            modalidade: document.getElementById('workout-modalidade').value,
+            tipoTreino: document.getElementById('workout-tipo-treino').value,
+            intensidade: document.getElementById('workout-intensidade').value,
+            percurso: document.getElementById('workout-percurso').value,
+            metrics: {
+                distancia: document.getElementById('workout-distancia').value,
+                tempo: document.getElementById('workout-tempo').value,
+                pace: document.getElementById('workout-pace').value,
+                velocidade: document.getElementById('workout-velocidade').value
+            },
+            observacoes: document.getElementById('workout-observacoes').value,
+            status: 'planejado',
+            timestamp: Date.now()
+        };
+
+        AdminPanel.state.db.ref(`users/${uid}/workouts`).push(payload).then(() => {
+            AdminPanel.elements.addWorkoutForm.reset();
+            alert("Treino prescrito com sucesso!");
         });
     },
 
-    loadAthleteIaHistory: (uid) => {
-        AdminPanel.state.db.ref(`clinicalAnalysis/${uid}`).orderByChild('timestamp').on('value', snapshot => {
-            AdminPanel.elements.iaHistoryList.innerHTML = '';
-            if (snapshot.exists()) {
-                const history = [];
-                snapshot.forEach(child => { history.push({ id: child.key, ...child.val() }); });
-                history.reverse(); 
+    loadWorkoutsForSelected: () => {
+        const uid = AdminPanel.state.selectedAthleteId;
+        if(!uid || !AdminPanel.elements.workoutsList) return;
 
-                history.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'workout-card'; 
-                    const dateStr = new Date(item.timestamp).toLocaleDateString('pt-BR');
-                    
-                    div.innerHTML = `
-                        <div class="workout-card-header">
-                            <span class="date">${dateStr}</span>
-                            <span class="title">Análise de Performance</span>
-                        </div>
-                        <div class="workout-card-body">
-                            <p>${escapeHtml(item.report)}</p>
-                        </div>
-                        <div class="workout-card-footer" style="justify-content: flex-end;">
-                             <button class="btn btn-danger btn-small" onclick="AdminPanel.deleteIaHistory('${uid}', '${item.id}')"><i class='bx bx-trash'></i></button>
-                        </div>
-                    `;
-                    AdminPanel.elements.iaHistoryList.appendChild(div);
-                });
-            } else {
-                AdminPanel.elements.iaHistoryList.innerHTML = '<p style="color:#666; text-align:center;">Nenhum histórico salvo.</p>';
+        AdminPanel.state.db.ref(`users/${uid}/workouts`).orderByChild('date').on('value', snapshot => {
+            AdminPanel.elements.workoutsList.innerHTML = '';
+            if (!snapshot.exists()) {
+                AdminPanel.elements.workoutsList.innerHTML = '<p class="empty-state">Nenhum treino agendado.</p>';
+                return;
             }
+
+            const workouts = [];
+            snapshot.forEach(child => { workouts.push({ id: child.key, ...child.val() }); });
+            workouts.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            workouts.forEach(workout => {
+                const isRealizado = workout.status === 'realizado';
+                const div = document.createElement('div');
+                div.className = `workout-card ${isRealizado ? 'status-realizado' : 'status-planejado'}`;
+                
+                let detailsHtml = `<p><strong>Modalidade:</strong> ${workout.modalidade} | <strong>Tipo:</strong> ${workout.tipoTreino}</p>`;
+                if(workout.metrics && (workout.metrics.distancia || workout.metrics.tempo)) {
+                    detailsHtml += `<p class="metrics-row">`;
+                    if(workout.metrics.distancia) detailsHtml += `<span>📏 ${workout.metrics.distancia}</span>`;
+                    if(workout.metrics.tempo) detailsHtml += `<span>⏱️ ${workout.metrics.tempo}</span>`;
+                    if(workout.metrics.pace) detailsHtml += `<span>⚡ ${workout.metrics.pace}</span>`;
+                    detailsHtml += `</p>`;
+                }
+
+                div.innerHTML = `
+                    <div class="workout-header">
+                        <h4>${workout.date.split('-').reverse().join('/')} - ${workout.title}</h4>
+                        <button class="btn btn-danger btn-small" onclick="AdminPanel.deleteWorkout('${uid}', '${workout.id}')"><i class='bx bx-trash'></i></button>
+                    </div>
+                    ${detailsHtml}
+                    ${isRealizado && workout.feedback ? `<div class="workout-feedback"><p><strong>Feedback:</strong> ${workout.feedback}</p></div>` : ''}
+                `;
+                AdminPanel.elements.workoutsList.appendChild(div);
+            });
         });
     },
 
     deleteWorkout: (uid, workoutId) => {
-        if (confirm("Excluir este treino?")) {
-            AdminPanel.state.db.ref(`workouts/${uid}/${workoutId}`).remove();
+        if(confirm("Excluir este treino?")) {
+            AdminPanel.state.db.ref(`users/${uid}/workouts/${workoutId}`).remove();
+            AdminPanel.state.db.ref(`publicWorkouts/${workoutId}`).remove();
         }
     },
-    
-    deleteIaHistory: (uid, reportId) => {
-        if (confirm("Excluir esta análise salva?")) {
-            AdminPanel.state.db.ref(`clinicalAnalysis/${uid}/${reportId}`).remove();
+
+    generateKpiAnalysis: async () => {
+        if(!window.GEMINI_API_KEY) {
+            alert("Chave da IA não configurada. Vá na aba 'Configurações & APIs' e insira sua chave do Gemini.");
+            return;
         }
+        
+        const btn = AdminPanel.elements.analyzeAthleteBtnIa;
+        btn.innerHTML = "<i class='bx bx-loader bx-spin'></i> Analisando...";
+        btn.disabled = true;
+
+        const uid = AdminPanel.state.selectedAthleteId;
+        try {
+            const snap = await AdminPanel.state.db.ref(`users/${uid}/workouts`).once('value');
+            if(!snap.exists()) throw new Error("Atleta não tem treinos suficientes.");
+            
+            const workouts = [];
+            snap.forEach(c => workouts.push(c.val()));
+            const treinosRealizados = workouts.filter(w => w.status === 'realizado');
+
+            const promptText = `
+                Como Fisiologista e Coach da equipe LeRunners, analise o desempenho recente deste atleta.
+                Total de treinos prescritos: ${workouts.length}.
+                Treinos realizados: ${treinosRealizados.length}.
+                Dados dos últimos treinos realizados: ${JSON.stringify(treinosRealizados.slice(-5))}
+                
+                Gere um relatório focado em:
+                1. Adesão e Consistência.
+                2. Evolução de Pace/Distância.
+                3. Alerta de possíveis overtrainings ou dores (baseado no feedback).
+                4. Recomendação para a próxima semana.
+            `;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${window.GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+            });
+
+            if(!response.ok) throw new Error("Falha na comunicação com o Gemini");
+            const data = await response.json();
+            const text = data.candidates[0].content.parts[0].text;
+
+            // Salva no histórico
+            await AdminPanel.state.db.ref(`users/${uid}/iaHistory`).push({
+                date: new Date().toISOString(),
+                report: text
+            });
+
+            alert("Análise gerada e salva com sucesso!");
+        } catch (err) {
+            alert("Erro na IA: " + err.message);
+        } finally {
+            btn.innerHTML = "<i class='bx bxs-brain'></i> Gerar Nova Análise (Gemini)";
+            btn.disabled = false;
+        }
+    },
+
+    loadIaHistory: () => {
+        const uid = AdminPanel.state.selectedAthleteId;
+        if(!uid || !AdminPanel.elements.iaHistoryList) return;
+
+        AdminPanel.state.db.ref(`users/${uid}/iaHistory`).orderByChild('date').on('value', snapshot => {
+            AdminPanel.elements.iaHistoryList.innerHTML = '';
+            if (!snapshot.exists()) {
+                AdminPanel.elements.iaHistoryList.innerHTML = '<p class="empty-state">Nenhuma análise salva.</p>';
+                return;
+            }
+
+            const histories = [];
+            snapshot.forEach(child => histories.push({id: child.key, ...child.val()}));
+            histories.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            histories.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'panel';
+                div.style.marginBottom = '1rem';
+                div.innerHTML = `
+                    <h5 style="color: var(--secondary-color); margin-bottom: 0.5rem;">${new Date(item.date).toLocaleDateString()}</h5>
+                    <div style="font-size: 0.9rem; white-space: pre-wrap;">${item.report}</div>
+                `;
+                AdminPanel.elements.iaHistoryList.appendChild(div);
+            });
+        });
     }
 };
 
-const AthletePanel = {
-    state: {},
+const AtletaPanel = {
+    state: { db: null, currentUser: null, userData: null },
     elements: {},
 
-    init: (user, db) => {
-        console.log("AthletePanel: Inicializado.");
-        AthletePanel.state = { db, currentUser: user };
-        AthletePanel.elements = {
-            workoutsList: document.getElementById('atleta-workouts-list'),
-            welcomeName: document.getElementById('atleta-welcome-name'),
-            logManualBtn: document.getElementById('log-manual-activity-btn')
-        };
+    init: (user, db, userData) => {
+        AtletaPanel.state.db = db;
+        AtletaPanel.state.currentUser = user;
+        AtletaPanel.state.userData = userData;
 
-        if (typeof AppPrincipal !== 'undefined' && AppPrincipal.state.userData) {
-            AthletePanel.elements.welcomeName.textContent = AppPrincipal.state.userData.name.split(' ')[0];
-        }
+        const nameEl = document.getElementById('atleta-welcome-name');
+        if(nameEl) nameEl.textContent = userData.name.split(' ')[0];
 
-        AthletePanel.loadMyWorkouts();
+        AtletaPanel.elements.workoutsList = document.getElementById('atleta-workouts-list');
+        AtletaPanel.loadWorkouts();
         
-        AthletePanel.elements.logManualBtn.addEventListener('click', () => {
-             document.getElementById('log-activity-date').value = new Date().toISOString().split('T')[0];
-             document.getElementById('log-activity-modal').classList.remove('hidden');
-        });
+        const btnManual = document.getElementById('log-manual-activity-btn');
+        if(btnManual) {
+            btnManual.onclick = () => {
+                document.getElementById('log-activity-modal').classList.remove('hidden');
+            };
+        }
     },
 
-    loadMyWorkouts: () => {
-        const uid = AthletePanel.state.currentUser.uid;
-        AthletePanel.state.db.ref(`workouts/${uid}`).orderByChild('date').on('value', snapshot => {
-            AthletePanel.elements.workoutsList.innerHTML = '';
-            if (snapshot.exists()) {
-                const workouts = [];
-                snapshot.forEach(child => { workouts.push({ id: child.key, ...child.val() }); });
-                
-                workouts.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                workouts.forEach(w => {
-                    const div = document.createElement('div');
-                    div.className = 'workout-card';
-                    
-                    const fDate = w.date.split('-').reverse().join('/');
-                    let statusHtml = `<span class="status-tag ${w.status}">${w.status.replace('_', ' ')}</span>`;
-                    
-                    div.innerHTML = `
-                        <div class="workout-card-header">
-                            <span class="date">${fDate}</span>
-                            <span class="title">${w.title}</span>
-                            ${statusHtml}
-                        </div>
-                        <div class="workout-card-body">
-                            <p>${escapeHtml(w.body || w.description || "")}</p>
-                            ${w.feedback ? `<div class="feedback-text"><strong>Seu Feedback:</strong><br>${escapeHtml(w.feedback)}</div>` : ''}
-                            ${w.photoUrl ? `<img src="${w.photoUrl}" class="workout-image" alt="Treino">` : ''}
-                            
-                            ${w.stravaData ? `
-                            <fieldset class="strava-data-display" style="display:block; margin-top:10px;">
-                                <legend><i class='bx bxl-strava'></i> Dados Extraídos</legend>
-                                <p>🎯 Distância: ${w.stravaData.distancia || '--'} km</p>
-                                <p>⏱️ Tempo: ${w.stravaData.tempo || '--'}</p>
-                                <p>⚡ Ritmo: ${w.stravaData.ritmo || '--'}</p>
-                            </fieldset>
-                            ` : ''}
-                        </div>
-                        <div class="workout-card-footer">
-                            <span style="font-size:0.8rem; color:var(--text-light);"><i class='bx bx-message-square-dots'></i> Ver comentários e dar feedback</span>
-                        </div>
-                    `;
-                    
-                    div.addEventListener('click', () => {
-                        if(typeof AppPrincipal !== 'undefined') AppPrincipal.openFeedbackModal(w.id, uid);
-                    });
-
-                    AthletePanel.elements.workoutsList.appendChild(div);
-                });
-            } else {
-                AthletePanel.elements.workoutsList.innerHTML = '<p style="color:#666; text-align:center;">Sua planilha está vazia. Aguarde o Coach.</p>';
+    loadWorkouts: () => {
+        const uid = AtletaPanel.state.currentUser.uid;
+        AtletaPanel.state.db.ref(`users/${uid}/workouts`).orderByChild('date').on('value', snapshot => {
+            if(!AtletaPanel.elements.workoutsList) return;
+            AtletaPanel.elements.workoutsList.innerHTML = '';
+            
+            if (!snapshot.exists()) {
+                AtletaPanel.elements.workoutsList.innerHTML = `
+                    <div class="empty-state">
+                        <i class='bx bx-calendar-x' style="font-size: 3rem; color: #ccc;"></i>
+                        <p>Nenhum treino prescrito no momento.</p>
+                    </div>`;
+                return;
             }
+
+            const workouts = [];
+            snapshot.forEach(child => workouts.push({ id: child.key, ...child.val() }));
+            workouts.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            workouts.forEach(workout => {
+                const isRealizado = workout.status === 'realizado' || workout.status === 'realizado_parcial';
+                const div = document.createElement('div');
+                div.className = `workout-card ${isRealizado ? 'status-realizado' : 'status-planejado'}`;
+                
+                let detailsHtml = `<div class="workout-details-grid">`;
+                if(workout.modalidade) detailsHtml += `<div><strong>Modalidade:</strong> ${workout.modalidade}</div>`;
+                if(workout.tipoTreino) detailsHtml += `<div><strong>Tipo:</strong> ${workout.tipoTreino}</div>`;
+                if(workout.intensidade) detailsHtml += `<div><strong>Intensidade:</strong> ${workout.intensidade}</div>`;
+                if(workout.percurso) detailsHtml += `<div><strong>Percurso:</strong> ${workout.percurso}</div>`;
+                detailsHtml += `</div>`;
+
+                if(workout.metrics && (workout.metrics.distancia || workout.metrics.tempo)) {
+                    detailsHtml += `<div class="metrics-row" style="margin-top: 10px;">`;
+                    if(workout.metrics.distancia) detailsHtml += `<span>📏 ${workout.metrics.distancia}</span>`;
+                    if(workout.metrics.tempo) detailsHtml += `<span>⏱️ ${workout.metrics.tempo}</span>`;
+                    if(workout.metrics.pace) detailsHtml += `<span>⚡ ${workout.metrics.pace}</span>`;
+                    detailsHtml += `</div>`;
+                }
+
+                div.innerHTML = `
+                    <div class="workout-header">
+                        <h4>${workout.date.split('-').reverse().join('/')} - ${workout.title}</h4>
+                        ${isRealizado ? '<span class="badge badge-success">Concluído</span>' : ''}
+                    </div>
+                    ${detailsHtml}
+                    ${workout.observacoes ? `<div class="workout-obs"><strong>Obs do Coach:</strong> ${workout.observacoes}</div>` : ''}
+                    
+                    ${!isRealizado ? `
+                        <button class="btn btn-primary" style="margin-top: 15px; width: 100%;" onclick="window.AppPrincipal.openFeedbackModal('${workout.id}', '${uid}')">
+                            <i class='bx bx-check-circle'></i> Dar Feedback do Treino
+                        </button>
+                    ` : `
+                        <div class="workout-feedback" style="margin-top: 15px;">
+                            <strong>Seu Feedback:</strong> ${workout.feedback || 'Sem feedback escrito.'}
+                        </div>
+                    `}
+                `;
+                AtletaPanel.elements.workoutsList.appendChild(div);
+            });
         });
     }
 };
 
 const FeedPanel = {
-    state: {},
-    elements: {},
-
-    init: (user, db) => {
-        console.log("FeedPanel V3.0: Inicializado.");
-        FeedPanel.state = { db, currentUser: user };
-        FeedPanel.elements = {
-            feedList: document.getElementById('feed-list')
-        };
+    state: { db: null, currentUser: null, userData: null },
+    
+    init: (user, db, userData) => {
+        FeedPanel.state = { db, currentUser: user, userData };
         FeedPanel.loadFeed();
     },
 
     loadFeed: () => {
+        const feedList = document.getElementById('feed-list');
+        if(!feedList) return;
+
         FeedPanel.state.db.ref('publicWorkouts').orderByChild('timestamp').limitToLast(50).on('value', snapshot => {
-            FeedPanel.elements.feedList.innerHTML = '';
-            if (snapshot.exists()) {
-                const posts = [];
-                snapshot.forEach(child => { posts.push({ id: child.key, ...child.val() }); });
-                posts.reverse(); 
-
-                posts.forEach(post => {
-                    const isOwner = post.ownerId === FeedPanel.state.currentUser.uid;
-                    const fDate = new Date(post.timestamp).toLocaleDateString('pt-BR');
-                    
-                    const div = document.createElement('div');
-                    div.className = 'workout-card';
-                    
-                    const avatarUrl = post.ownerPhotoUrl || `https://placehold.co/150x150/4169E1/FFFFFF?text=${post.ownerName.charAt(0)}`;
-
-                    div.innerHTML = `
-                        <div class="workout-card-header">
-                            <img src="${avatarUrl}" class="athlete-avatar" alt="Avatar" data-uid="${post.ownerId}">
-                            <span class="athlete-name" data-uid="${post.ownerId}">${escapeHtml(post.ownerName)}</span>
-                            <span class="date">${fDate} - ${escapeHtml(post.title)}</span>
-                            <span class="status-tag ${post.status}">${post.status.replace('_', ' ')}</span>
-                        </div>
-                        <div class="workout-card-body">
-                            ${post.feedback ? `<div class="feedback-text">"${escapeHtml(post.feedback)}"</div>` : '<div class="feedback-text" style="color:#999;">Treino concluído sem feedback escrito.</div>'}
-                            ${post.photoUrl ? `<img src="${post.photoUrl}" class="workout-image" alt="Treino">` : ''}
-                            
-                            ${post.stravaData ? `
-                            <fieldset class="strava-data-display" style="display:block; margin-top:10px;">
-                                <legend><i class='bx bxl-strava'></i> Dados Extraídos</legend>
-                                <p>🎯 Distância: ${post.stravaData.distancia || '--'} km | ⏱️ Tempo: ${post.stravaData.tempo || '--'} | ⚡ Ritmo: ${post.stravaData.ritmo || '--'}</p>
-                            </fieldset>
-                            ` : ''}
-                        </div>
-                        <div class="workout-card-footer">
-                            <div class="workout-actions">
-                                <button class="action-btn btn-like" id="like-btn-${post.id}" ${isOwner ? 'disabled title="Você não pode curtir seu próprio treino"' : ''}>
-                                    <i class='bx bx-like'></i> <span id="like-count-${post.id}">0</span>
-                                </button>
-                                <button class="action-btn btn-comment" onclick="event.stopPropagation(); AppPrincipal.openFeedbackModal('${post.originalId}', '${post.ownerId}')">
-                                    <i class='bx bx-comment'></i> <span id="comment-count-${post.id}">0</span>
-                                </button>
-                            </div>
-                        </div>
-                    `;
-
-                    const avatarImg = div.querySelector('.athlete-avatar');
-                    const nameSpan = div.querySelector('.athlete-name');
-                    const openProfileHandler = (e) => {
-                        e.stopPropagation();
-                        AppPrincipal.openViewProfile(post.ownerId);
-                    };
-                    avatarImg.addEventListener('click', openProfileHandler);
-                    nameSpan.addEventListener('click', openProfileHandler);
-
-                    div.addEventListener('click', () => {
-                         if(typeof AppPrincipal !== 'undefined') AppPrincipal.openFeedbackModal(post.originalId, post.ownerId);
-                    });
-
-                    FeedPanel.elements.feedList.appendChild(div);
-                    FeedPanel.attachSocialListeners(post.id, isOwner);
-                });
-            } else {
-                FeedPanel.elements.feedList.innerHTML = '<p style="color:#666; text-align:center;">Feed vazio. Vá treinar e poste os resultados!</p>';
+            feedList.innerHTML = '';
+            if(!snapshot.exists()) {
+                feedList.innerHTML = '<p class="empty-state">O feed está vazio. Faça um treino e seja o primeiro!</p>';
+                return;
             }
+
+            const posts = [];
+            snapshot.forEach(child => posts.push({ id: child.key, ...child.val() }));
+            posts.sort((a,b) => b.timestamp - a.timestamp);
+
+            posts.forEach(post => {
+                const uid = FeedPanel.state.currentUser.uid;
+                const likesCount = post.likes ? Object.keys(post.likes).length : 0;
+                const isLiked = post.likes && post.likes[uid];
+                const commentsCount = post.comments ? Object.keys(post.comments).length : 0;
+
+                const div = document.createElement('div');
+                div.className = 'feed-item';
+                div.innerHTML = `
+                    <div class="feed-header">
+                        <img src="${post.ownerPhoto || 'https://placehold.co/150x150/4169E1/FFFFFF?text=' + post.ownerName.charAt(0)}" class="athlete-avatar">
+                        <div class="feed-header-info">
+                            <span class="athlete-name">${post.ownerName}</span>
+                            <span class="workout-date">${new Date(post.timestamp).toLocaleString()}</span>
+                        </div>
+                        ${post.source === 'lerunners_gps' ? '<span class="badge" style="background:#fc4c02; color:white; font-size:0.7rem;"><i class="bx bx-navigation"></i> GPS Nativo</span>' : ''}
+                    </div>
+                    
+                    <div class="feed-body">
+                        <h4 style="margin-bottom: 5px;">${post.title}</h4>
+                        <p style="color: var(--text-light); font-size: 0.95rem; margin-bottom: 10px;">${post.feedback}</p>
+                        ${post.metrics ? `
+                            <div class="metrics-row" style="background: var(--light-gray); padding: 10px; border-radius: 8px;">
+                                ${post.metrics.distancia ? `<span>📏 <strong>${post.metrics.distancia}</strong></span>` : ''}
+                                ${post.metrics.tempo ? `<span>⏱️ <strong>${post.metrics.tempo}</strong></span>` : ''}
+                                ${post.metrics.pace ? `<span>⚡ <strong>${post.metrics.pace}</strong></span>` : ''}
+                            </div>
+                        ` : ''}
+                        ${post.photoUrl ? `<img src="${post.photoUrl}" class="feed-photo" style="width: 100%; border-radius: 8px; margin-top: 10px;">` : ''}
+                    </div>
+
+                    <div class="feed-actions">
+                        <button class="action-btn ${isLiked ? 'liked' : ''}" onclick="FeedPanel.toggleLike('${post.id}', ${!isLiked})">
+                            <i class='bx ${isLiked ? 'bxs-heart' : 'bx-heart'}'></i> 
+                            ${likesCount > 0 ? `<span class="like-count" onclick="event.stopPropagation(); window.AppPrincipal.showWhoLiked('${post.id}')">${likesCount}</span>` : 'Curtir'}
+                        </button>
+                        <button class="action-btn" onclick="window.AppPrincipal.openComments('${post.id}')">
+                            <i class='bx bx-comment'></i> ${commentsCount > 0 ? commentsCount : 'Comentar'}
+                        </button>
+                    </div>
+                `;
+                feedList.appendChild(div);
+            });
         });
     },
 
-    attachSocialListeners: (workoutId, isOwner) => {
-        const likeBtn = document.getElementById(`like-btn-${workoutId}`);
-        const likeCount = document.getElementById(`like-count-${workoutId}`);
-        const commentCount = document.getElementById(`comment-count-${workoutId}`);
-
-        const likesRef = FeedPanel.state.db.ref(`workoutLikes/${workoutId}`);
-        const commentsRef = FeedPanel.state.db.ref(`workoutComments/${workoutId}`);
-        
-        AppPrincipal.state.listeners[`feed_likes_${workoutId}`] = likesRef;
-        
-        likesRef.on('value', snapshot => {
-            const count = snapshot.numChildren();
-            likeCount.textContent = count;
-            if (snapshot.hasChild(FeedPanel.state.currentUser.uid)) likeBtn.classList.add('liked');
-            else likeBtn.classList.remove('liked');
-            if (isOwner) likeBtn.disabled = true;
-
-            if (count > 0) {
-                likeCount.classList.add('like-count-btn');
-                likeCount.onclick = (e) => { e.stopPropagation(); AppPrincipal.openWhoLikedModal(workoutId); };
-            } else {
-                likeCount.classList.remove('like-count-btn');
-                likeCount.onclick = null;
-            }
-        });
-        
-        AppPrincipal.state.listeners[`feed_comments_${workoutId}`] = commentsRef;
-        
-        commentsRef.on('value', snapshot => commentCount.textContent = snapshot.numChildren());
-
-        if (!isOwner) {
-            likeBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); 
-                const myLikeRef = likesRef.child(FeedPanel.state.currentUser.uid);
-                myLikeRef.once('value', snapshot => {
-                    if (snapshot.exists()) myLikeRef.remove(); else myLikeRef.set(true);
-                });
-            });
-        }
+    toggleLike: (postId, shouldLike) => {
+        const uid = FeedPanel.state.currentUser.uid;
+        const ref = FeedPanel.state.db.ref(`publicWorkouts/${postId}/likes/${uid}`);
+        if(shouldLike) ref.set(true); else ref.remove();
     }
 };
 
 const FinancePanel = {
-    state: { db: null, currentUser: null, products: {} },
+    state: { db: null, currentUser: null },
     elements: {},
 
     init: (user, db) => {
-        FinancePanel.state = { db, currentUser: user, products: {} };
+        FinancePanel.state = { db, currentUser: user };
         FinancePanel.elements = {
             totalReceita: document.getElementById('fin-total-receita'),
             totalDespesa: document.getElementById('fin-total-despesa'),
-            saldoAtual: document.getElementById('fin-saldo'),
+            saldo: document.getElementById('fin-saldo'),
+            transactionsList: document.getElementById('finance-transactions-list'),
+            inventoryList: document.getElementById('finance-inventory-list'),
+            transactionForm: document.getElementById('finance-transaction-form'),
+            productForm: document.getElementById('finance-product-form'),
             
+            finType: document.getElementById('fin-type'),
+            finCategory: document.getElementById('fin-category'),
+            studentSelector: document.getElementById('fin-student-selector'),
+            productSelector: document.getElementById('fin-product-selector'),
+            studentSelect: document.getElementById('fin-student-select'),
+            productSelect: document.getElementById('fin-product-select'),
+
             tabLancamentosBtn: document.querySelector('[data-fin-tab="lancamentos"]'),
             tabEstoqueBtn: document.querySelector('[data-fin-tab="estoque"]'),
             tabLancamentos: document.getElementById('fin-tab-lancamentos'),
-            tabEstoque: document.getElementById('fin-tab-estoque'),
-
-            transactionForm: document.getElementById('finance-transaction-form'),
-            finType: document.getElementById('fin-type'),
-            finCategory: document.getElementById('fin-category'),
-            finStudentSelector: document.getElementById('fin-student-selector'),
-            finStudentSelect: document.getElementById('fin-student-select'),
-            finProductSelector: document.getElementById('fin-product-selector'),
-            finProductSelect: document.getElementById('fin-product-select'),
-            finDescription: document.getElementById('fin-description'),
-            finAmount: document.getElementById('fin-amount'),
-            finDate: document.getElementById('fin-date'),
-            transactionsList: document.getElementById('finance-transactions-list'),
-
-            productForm: document.getElementById('finance-product-form'),
-            prodName: document.getElementById('prod-name'),
-            prodPrice: document.getElementById('prod-price'),
-            prodCost: document.getElementById('prod-cost'),
-            prodQty: document.getElementById('prod-qty'),
-            inventoryList: document.getElementById('finance-inventory-list'),
+            tabEstoque: document.getElementById('fin-tab-estoque')
         };
 
-        FinancePanel.setupTabs();
-        FinancePanel.setupDynamicForm();
+        FinancePanel.setupListeners();
         FinancePanel.loadStudents();
-        FinancePanel.loadInventory();
+        FinancePanel.loadInventoryForSelect();
         FinancePanel.loadTransactions();
-
-        FinancePanel.elements.transactionForm.addEventListener('submit', FinancePanel.handleTransactionSubmit);
-        FinancePanel.elements.productForm.addEventListener('submit', FinancePanel.handleProductSubmit);
+        FinancePanel.loadInventory();
     },
 
-    setupTabs: () => {
-        const btns = [FinancePanel.elements.tabLancamentosBtn, FinancePanel.elements.tabEstoqueBtn];
-        const contents = [FinancePanel.elements.tabLancamentos, FinancePanel.elements.tabEstoque];
+    setupListeners: () => {
+        const tabs = [
+            { btn: FinancePanel.elements.tabLancamentosBtn, content: FinancePanel.elements.tabLancamentos },
+            { btn: FinancePanel.elements.tabEstoqueBtn, content: FinancePanel.elements.tabEstoque }
+        ];
 
-        btns.forEach((btn, index) => {
-            btn.addEventListener('click', () => {
-                btns.forEach(b => b.classList.remove('active'));
-                contents.forEach(c => c.classList.add('hidden'));
-                contents.forEach(c => c.classList.remove('active')); 
+        tabs.forEach(tab => {
+            if(tab.btn) {
+                tab.btn.addEventListener('click', () => {
+                    tabs.forEach(t => { t.btn.classList.remove('active'); t.content.classList.add('hidden'); });
+                    tab.btn.classList.add('active'); tab.content.classList.remove('hidden');
+                });
+            }
+        });
 
-                btn.classList.add('active');
-                contents[index].classList.remove('hidden');
-                contents[index].classList.add('active');
+        if(FinancePanel.elements.finCategory) {
+            FinancePanel.elements.finCategory.addEventListener('change', (e) => {
+                const val = e.target.value;
+                FinancePanel.elements.studentSelector.classList.toggle('hidden', val !== 'Mensalidade');
+                FinancePanel.elements.studentSelect.required = (val === 'Mensalidade');
+                FinancePanel.elements.productSelector.classList.toggle('hidden', val !== 'Venda');
+                FinancePanel.elements.productSelect.required = (val === 'Venda');
+            });
+        }
+
+        if(FinancePanel.elements.productForm) FinancePanel.elements.productForm.onsubmit = FinancePanel.handleAddProduct;
+        if(FinancePanel.elements.transactionForm) FinancePanel.elements.transactionForm.onsubmit = FinancePanel.handleAddTransaction;
+    },
+
+    loadStudents: () => {
+        FinancePanel.state.db.ref('users').orderByChild('role').equalTo('atleta').once('value', snap => {
+            if(!snap.exists() || !FinancePanel.elements.studentSelect) return;
+            FinancePanel.elements.studentSelect.innerHTML = '<option value="">Selecione o Aluno...</option>';
+            snap.forEach(child => {
+                const opt = document.createElement('option');
+                opt.value = child.key; opt.textContent = child.val().name;
+                FinancePanel.elements.studentSelect.appendChild(opt);
             });
         });
     },
 
-    setupDynamicForm: () => {
-        FinancePanel.elements.finType.addEventListener('change', () => {
-            const type = FinancePanel.elements.finType.value;
-            FinancePanel.elements.finCategory.innerHTML = '';
-            
-            if (type === 'receita') {
-                FinancePanel.elements.finCategory.innerHTML = `
-                    <option value="Mensalidade">Mensalidade</option>
-                    <option value="Venda">Venda de Produto</option>
-                    <option value="Outro">Outro</option>
-                `;
-            } else {
-                FinancePanel.elements.finCategory.innerHTML = `
-                    <option value="Salario">Salário/Pró-labore</option>
-                    <option value="Marketing">Marketing/Anúncios</option>
-                    <option value="Estrutura">Estrutura (Aluguel, Água...)</option>
-                    <option value="Impostos">Impostos/Taxas</option>
-                    <option value="Fornecedor">Compra de Estoque (Fornecedor)</option>
-                    <option value="Outro">Outro</option>
-                `;
-            }
-            FinancePanel.elements.finCategory.dispatchEvent(new Event('change'));
-        });
-
-        FinancePanel.elements.finCategory.addEventListener('change', () => {
-            const cat = FinancePanel.elements.finCategory.value;
-            FinancePanel.elements.finStudentSelector.classList.add('hidden');
-            FinancePanel.elements.finProductSelector.classList.add('hidden');
-            
-            if (cat === 'Mensalidade') {
-                FinancePanel.elements.finStudentSelector.classList.remove('hidden');
-            } else if (cat === 'Venda') {
-                FinancePanel.elements.finStudentSelector.classList.remove('hidden');
-                FinancePanel.elements.finProductSelector.classList.remove('hidden');
-            } else if (cat === 'Fornecedor') {
-                FinancePanel.elements.finProductSelector.classList.remove('hidden');
-            }
-        });
-        
-        FinancePanel.elements.finProductSelect.addEventListener('change', () => {
-            const prodId = FinancePanel.elements.finProductSelect.value;
-            if(prodId && FinancePanel.state.products[prodId]) {
-                const prod = FinancePanel.state.products[prodId];
-                const cat = FinancePanel.elements.finCategory.value;
-                if(cat === 'Venda') {
-                    FinancePanel.elements.finAmount.value = prod.price;
-                    FinancePanel.elements.finDescription.value = `Venda: ${prod.name}`;
-                } else if (cat === 'Fornecedor') {
-                    FinancePanel.elements.finAmount.value = prod.cost || 0;
-                    FinancePanel.elements.finDescription.value = `Reposição: ${prod.name}`;
-                }
+    loadInventoryForSelect: () => {
+        FinancePanel.state.db.ref('finance/inventory').on('value', snap => {
+            if(!FinancePanel.elements.productSelect) return;
+            FinancePanel.elements.productSelect.innerHTML = '<option value="">Selecione o Produto...</option>';
+            if(snap.exists()) {
+                snap.forEach(child => {
+                    const data = child.val();
+                    const opt = document.createElement('option');
+                    opt.value = child.key;
+                    opt.textContent = `${data.name} (Qtd: ${data.quantity}) - R$ ${data.price.toFixed(2)}`;
+                    FinancePanel.elements.productSelect.appendChild(opt);
+                });
             }
         });
     },
 
-    loadStudents: () => {
-        FinancePanel.state.db.ref('users').once('value', snap => {
-            let html = '<option value="">Selecione o Aluno...</option>';
-            if (snap.exists()) {
-                snap.forEach(child => {
-                    const user = child.val();
-                    if(user.role !== 'admin') {
-                        html += `<option value="${child.key}">${user.name}</option>`;
-                    }
-                });
-            }
-            FinancePanel.elements.finStudentSelect.innerHTML = html;
+    handleAddProduct: (e) => {
+        e.preventDefault();
+        const payload = {
+            name: document.getElementById('prod-name').value,
+            price: parseFloat(document.getElementById('prod-price').value),
+            cost: parseFloat(document.getElementById('prod-cost').value || 0),
+            quantity: parseInt(document.getElementById('prod-qty').value, 10),
+            timestamp: Date.now()
+        };
+        FinancePanel.state.db.ref('finance/inventory').push(payload).then(() => {
+            FinancePanel.elements.productForm.reset();
+            alert("Produto cadastrado no estoque!");
         });
     },
 
     loadInventory: () => {
         FinancePanel.state.db.ref('finance/inventory').on('value', snap => {
+            if(!FinancePanel.elements.inventoryList) return;
             FinancePanel.elements.inventoryList.innerHTML = '';
-            FinancePanel.state.products = {};
-            let selHtml = '<option value="">Selecione o Produto...</option>';
+            if(!snap.exists()) return;
 
-            if (snap.exists()) {
-                snap.forEach(child => {
-                    const prod = child.val();
-                    FinancePanel.state.products[child.key] = prod;
-                    selHtml += `<option value="${child.key}">${prod.name} (Estoque: ${prod.qty})</option>`;
-
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td><strong>${prod.name}</strong><br><small style="color:#666;">Custo: R$ ${parseFloat(prod.cost||0).toFixed(2)}</small></td>
-                        <td style="color:var(--success-color); font-weight:bold;">R$ ${parseFloat(prod.price).toFixed(2)}</td>
-                        <td>${prod.qty}</td>
-                        <td>
-                            <button class="btn btn-small btn-secondary" onclick="FinancePanel.updateStock('${child.key}', 1)">+1</button>
-                            <button class="btn btn-small btn-danger" onclick="FinancePanel.deleteProduct('${child.key}')"><i class='bx bx-trash'></i></button>
-                        </td>
-                    `;
-                    FinancePanel.elements.inventoryList.appendChild(tr);
-                });
-            } else {
-                FinancePanel.elements.inventoryList.innerHTML = '<tr><td colspan="4" style="text-align:center;">Estoque vazio.</td></tr>';
-            }
-            FinancePanel.elements.finProductSelect.innerHTML = selHtml;
+            snap.forEach(child => {
+                const id = child.key; const data = child.val();
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${data.name}</td>
+                    <td>R$ ${data.price.toFixed(2)}</td>
+                    <td><span class="badge ${data.quantity <= 5 ? 'badge-danger' : 'badge-success'}">${data.quantity}</span></td>
+                    <td>
+                        <button class="btn btn-danger btn-small" onclick="FinancePanel.deleteProduct('${id}')"><i class='bx bx-trash'></i></button>
+                    </td>
+                `;
+                FinancePanel.elements.inventoryList.appendChild(tr);
+            });
         });
-    },
-
-    loadTransactions: () => {
-        FinancePanel.state.db.ref('finance/transactions').on('value', snap => {
-            FinancePanel.elements.transactionsList.innerHTML = '';
-            let totalReceita = 0;
-            let totalDespesa = 0;
-
-            if (snap.exists()) {
-                const trxs = [];
-                snap.forEach(child => trxs.push({id: child.key, ...child.val()}));
-                trxs.sort((a,b) => new Date(b.date) - new Date(a.date));
-
-                trxs.forEach(t => {
-                    const isReceita = t.type === 'receita';
-                    const valNum = parseFloat(t.amount);
-                    if (isReceita) totalReceita += valNum; else totalDespesa += valNum;
-
-                    const badgeClass = isReceita ? 'badge-success' : 'badge-danger';
-                    const colorVal = isReceita ? 'var(--success-color)' : 'var(--danger-color)';
-                    const sinal = isReceita ? '+' : '-';
-
-                    let extraInfo = '';
-                    if(t.studentName) extraInfo += `<br><small style="color:#666;"><i class='bx bx-user'></i> ${t.studentName}</small>`;
-
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${t.date.split('-').reverse().join('/')}</td>
-                        <td><strong>${t.description}</strong>${extraInfo}</td>
-                        <td><span class="badge ${badgeClass}">${t.category}</span></td>
-                        <td style="color:${colorVal}; font-weight:bold;">${sinal} R$ ${valNum.toFixed(2)}</td>
-                        <td>
-                            <button class="btn btn-small btn-danger" onclick="FinancePanel.deleteTransaction('${t.id}')"><i class='bx bx-x'></i></button>
-                        </td>
-                    `;
-                    FinancePanel.elements.transactionsList.appendChild(tr);
-                });
-            } else {
-                FinancePanel.elements.transactionsList.innerHTML = '<tr><td colspan="5" style="text-align:center;">Nenhum lançamento registrado.</td></tr>';
-            }
-
-            const saldo = totalReceita - totalDespesa;
-            FinancePanel.elements.totalReceita.textContent = `R$ ${totalReceita.toFixed(2)}`;
-            FinancePanel.elements.totalDespesa.textContent = `R$ ${totalDespesa.toFixed(2)}`;
-            FinancePanel.elements.saldoAtual.textContent = `R$ ${saldo.toFixed(2)}`;
-            FinancePanel.elements.saldoAtual.style.color = saldo >= 0 ? 'var(--success-color)' : 'var(--danger-color)';
-        });
-    },
-
-    handleProductSubmit: (e) => {
-        e.preventDefault();
-        const payload = {
-            name: FinancePanel.elements.prodName.value,
-            price: parseFloat(FinancePanel.elements.prodPrice.value),
-            cost: parseFloat(FinancePanel.elements.prodCost.value || 0),
-            qty: parseInt(FinancePanel.elements.prodQty.value)
-        };
-        FinancePanel.state.db.ref('finance/inventory').push(payload).then(() => {
-            FinancePanel.elements.productForm.reset();
-        });
-    },
-
-    updateStock: (id, change) => {
-        const prodRef = FinancePanel.state.db.ref(`finance/inventory/${id}/qty`);
-        prodRef.transaction(currentQty => (currentQty || 0) + change);
     },
 
     deleteProduct: (id) => {
-        if(confirm("Excluir este produto do estoque?")) {
-            FinancePanel.state.db.ref(`finance/inventory/${id}`).remove();
-        }
+        if(confirm("Excluir produto do estoque?")) FinancePanel.state.db.ref(`finance/inventory/${id}`).remove();
     },
 
-    handleTransactionSubmit: async (e) => {
+    handleAddTransaction: async (e) => {
         e.preventDefault();
-        
-        const type = FinancePanel.elements.finType.value;
-        const category = FinancePanel.elements.finCategory.value;
-        const amount = parseFloat(FinancePanel.elements.finAmount.value);
-        const date = FinancePanel.elements.finDate.value;
-        const description = FinancePanel.elements.finDescription.value;
-        const studentId = FinancePanel.elements.finStudentSelect.value;
-        const productId = FinancePanel.elements.finProductSelect.value;
+        const payload = {
+            type: document.getElementById('fin-type').value,
+            category: document.getElementById('fin-category').value,
+            amount: parseFloat(document.getElementById('fin-amount').value),
+            date: document.getElementById('fin-date').value,
+            description: document.getElementById('fin-description').value,
+            studentId: document.getElementById('fin-student-select').value,
+            productId: document.getElementById('fin-product-select').value,
+            timestamp: Date.now()
+        };
 
-        const payload = { type, category, amount, date, description, timestamp: Date.now() };
-
-        if (studentId) {
-            const sSnap = await FinancePanel.state.db.ref(`users/${studentId}`).once('value');
-            if(sSnap.exists()) payload.studentName = sSnap.val().name;
-            payload.studentId = studentId;
-        }
-
-        if (category === 'Venda' && productId) {
-            FinancePanel.updateStock(productId, -1);
-            payload.productId = productId;
-        } else if (category === 'Fornecedor' && productId) {
-            FinancePanel.updateStock(productId, 1);
-            payload.productId = productId;
+        if(payload.category === 'Venda' && payload.productId) {
+            FinancePanel.updateStock(payload.productId, -1);
         }
 
         FinancePanel.state.db.ref('finance/transactions').push(payload).then(() => {
             FinancePanel.elements.transactionForm.reset();
-            FinancePanel.elements.finCategory.dispatchEvent(new Event('change')); 
+            FinancePanel.elements.finCategory.dispatchEvent(new Event('change'));
+            alert("Lançamento efetuado!");
+        });
+    },
+
+    updateStock: (productId, change) => {
+        const ref = FinancePanel.state.db.ref(`finance/inventory/${productId}/quantity`);
+        ref.transaction(current => (current || 0) + change);
+    },
+
+    loadTransactions: () => {
+        FinancePanel.state.db.ref('finance/transactions').orderByChild('date').on('value', snap => {
+            if(!FinancePanel.elements.transactionsList) return;
+            FinancePanel.elements.transactionsList.innerHTML = '';
+            
+            let tReceitas = 0; let tDespesas = 0;
+
+            if(snap.exists()) {
+                const trans = [];
+                snap.forEach(c => trans.push({id: c.key, ...c.val()}));
+                trans.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+                trans.forEach(t => {
+                    if(t.type === 'receita') tReceitas += t.amount;
+                    else tDespesas += t.amount;
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${t.date.split('-').reverse().join('/')}</td>
+                        <td>${t.description}</td>
+                        <td><span class="badge" style="background:#eee;color:#333;">${t.category}</span></td>
+                        <td style="color: ${t.type==='receita' ? 'var(--success-color)' : 'var(--danger-color)'}">
+                            ${t.type==='receita'?'+':'-'} R$ ${t.amount.toFixed(2)}
+                        </td>
+                        <td><button class="btn btn-danger btn-small" onclick="FinancePanel.deleteTransaction('${t.id}')"><i class='bx bx-trash'></i></button></td>
+                    `;
+                    FinancePanel.elements.transactionsList.appendChild(tr);
+                });
+            }
+
+            if(FinancePanel.elements.totalReceita) FinancePanel.elements.totalReceita.textContent = `R$ ${tReceitas.toFixed(2)}`;
+            if(FinancePanel.elements.totalDespesa) FinancePanel.elements.totalDespesa.textContent = `R$ ${tDespesas.toFixed(2)}`;
+            if(FinancePanel.elements.saldo) FinancePanel.elements.saldo.textContent = `R$ ${(tReceitas - tDespesas).toFixed(2)}`;
         });
     },
 
     deleteTransaction: (id) => {
-        if(confirm("Excluir este lançamento financeiro?")) {
-            FinancePanel.state.db.ref(`finance/transactions/${id}`).remove();
-        }
+        if(confirm("Excluir este lançamento?")) FinancePanel.state.db.ref(`finance/transactions/${id}`).remove();
     }
 };

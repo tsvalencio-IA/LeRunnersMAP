@@ -1,7 +1,6 @@
 /* =================================================================== */
-/* APP.JS - VERSÃO MESTRA 11.0 (COFRE DE CHAVES BLINDADO NO FIREBASE)
+/* APP.JS - VERSÃO MESTRA 11.5 (BLINDAGEM CONTRA FALHA DE RENDERIZAÇÃO)
 /* LERUNNERS - SISTEMA DE TREINOS E GPS TRACKER
-/* FIX: Escopo global de constantes (correção de inicialização silenciosa)
 /* =================================================================== */
 
 const AppPrincipal = {
@@ -23,8 +22,7 @@ const AppPrincipal = {
 
     // --- INICIALIZAÇÃO ---
     init: () => {
-        // CORREÇÃO CRÍTICA: Variáveis "const" não vão para o objeto "window".
-        // Lemos "firebaseConfig" diretamente do escopo global.
+        // CORREÇÃO CRÍTICA: Lemos "firebaseConfig" diretamente do escopo global.
         if (typeof firebaseConfig === 'undefined') {
             console.error("Erro Crítico: firebaseConfig não foi encontrado!");
             return;
@@ -196,7 +194,7 @@ const AppPrincipal = {
 
                     if (AppPrincipal.state.adminUIDs[uid]) {
                         AppPrincipal.state.viewMode = 'admin';
-                        if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.classList.remove('hidden');
+                        if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.classList.remove('hidden'); // Exibe financeiro pro Admin
                         document.body.classList.remove('atleta-view');
                         document.body.classList.add('admin-view');
                     } else {
@@ -245,7 +243,7 @@ const AppPrincipal = {
                  return;
              }
 
-             AppPrincipal.elements.profileUploadFeedback.textContent = "Fazendo upload da imagem...";
+             AppPrincipal.elements.profileUploadFeedback.textContent = "A fazer upload da imagem...";
              AppPrincipal.elements.profilePicUpload.disabled = true;
 
              const formData = new FormData();
@@ -436,7 +434,7 @@ const AppPrincipal = {
         }
 
         const feedbackEl = document.getElementById('photo-upload-feedback');
-        feedbackEl.textContent = "Fazendo upload para a nuvem...";
+        feedbackEl.textContent = "A fazer upload para a nuvem...";
         document.getElementById('save-feedback-btn').disabled = true;
 
         const formData = new FormData();
@@ -608,7 +606,7 @@ const AppPrincipal = {
 
         const btn = document.getElementById('save-feedback-btn');
         btn.disabled = true;
-        btn.textContent = "Salvando...";
+        btn.textContent = "A Guardar...";
 
         AppPrincipal.state.db.ref(`workouts/${ownerId}/${workoutId}`).update(updates)
             .then(() => {
@@ -634,15 +632,15 @@ const AppPrincipal = {
                     });
                 }
 
-                alert('Treino salvo com sucesso!');
+                alert('Treino guardado com sucesso!');
                 AppPrincipal.closeModal();
             })
             .catch(error => {
-                alert('Erro ao salvar: ' + error.message);
+                alert('Erro ao guardar: ' + error.message);
             })
             .finally(() => {
                 btn.disabled = false;
-                btn.textContent = "Salvar Feedback";
+                btn.textContent = "Guardar Feedback";
             });
     },
 
@@ -722,7 +720,7 @@ const AppPrincipal = {
                 if(AppPrincipal.state.userData.photoUrl) publicData.ownerPhotoUrl = AppPrincipal.state.userData.photoUrl;
                 AppPrincipal.state.db.ref('publicWorkouts').push(publicData);
                 
-                alert("Atividade registrada e publicada no feed!");
+                alert("Atividade registada e publicada no feed!");
                 AppPrincipal.elements.logActivityModal.classList.add('hidden');
                 AppPrincipal.elements.logActivityForm.reset();
             });
@@ -748,7 +746,7 @@ const AppPrincipal = {
                     });
                 });
             } else {
-                 AppPrincipal.elements.whoLikedList.innerHTML = '<li>Ninguém curtiu ainda.</li>';
+                 AppPrincipal.elements.whoLikedList.innerHTML = '<li>Ninguém gostou ainda.</li>';
             }
         });
     },
@@ -764,8 +762,8 @@ const AppPrincipal = {
         }
 
         btn.disabled = true;
-        btn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> Processando dados...";
-        output.textContent = "Coletando histórico do atleta no Firebase...\n";
+        btn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> A processar dados...";
+        output.textContent = "A recolher histórico do atleta no Firebase...\n";
         AppPrincipal.elements.saveIaAnalysisBtn.classList.add('hidden');
         AppPrincipal.elements.iaAnalysisModal.classList.remove('hidden');
 
@@ -796,13 +794,13 @@ const AppPrincipal = {
             }
 
             if (workoutsCount === 0) {
-                 output.textContent = "Atleta não possui treinos registrados no último mês para análise.";
+                 output.textContent = "Atleta não possui treinos registados no último mês para análise.";
                  btn.disabled = false;
                  btn.innerHTML = "<i class='bx bxs-brain'></i> Gerar Nova Análise (Gemini)";
                  return;
             }
 
-            output.textContent += `Foram encontrados ${workoutsCount} treinos (${realizedCount} concluídos). Enviando ao Fisiologista Virtual (Gemini 2.0)...\n\n`;
+            output.textContent += `Foram encontrados ${workoutsCount} treinos (${realizedCount} concluídos). A enviar ao Fisiologista Virtual (Gemini 2.0)...\n\n`;
 
             // 2. Monta Prompt
             const prompt = `
@@ -862,7 +860,7 @@ const AppPrincipal = {
         const btn = AppPrincipal.elements.saveIaAnalysisBtn;
         
         btn.disabled = true;
-        btn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> Salvando...";
+        btn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> A guardar...";
 
         try {
             await AppPrincipal.state.db.ref(`clinicalAnalysis/${data.athleteId}`).push({
@@ -870,13 +868,13 @@ const AppPrincipal = {
                 timestamp: data.timestamp,
                 coachId: AppPrincipal.state.currentUser.uid
             });
-            alert("Análise salva no prontuário do atleta!");
+            alert("Análise guardada no prontuário do atleta!");
             AppPrincipal.elements.iaAnalysisModal.classList.add('hidden');
         } catch(e) {
-            alert("Erro ao salvar: " + e.message);
+            alert("Erro ao guardar: " + e.message);
         } finally {
             btn.disabled = false;
-            btn.innerHTML = "<i class='bx bx-save'></i> Salvar Análise";
+            btn.innerHTML = "<i class='bx bx-save'></i> Guardar Análise";
         }
     }
 };
@@ -962,7 +960,7 @@ window.GPSTracker = {
             
             window.GPSTracker.updateUI();
         }, err => {
-            console.error("GPS Error:", err); alert("Ative a localização exata do seu celular.");
+            console.error("GPS Error:", err); alert("Ative a localização exata do seu telemóvel.");
         }, {enableHighAccuracy: true, maximumAge: 0, timeout: 5000});
     },
     pause: () => {
@@ -987,7 +985,7 @@ window.GPSTracker = {
         if(window.GPSTracker.watchId) navigator.geolocation.clearWatch(window.GPSTracker.watchId);
         
         if(askToSave && window.GPSTracker.totalDistance > 50) { 
-            if(confirm("Treino finalizado! Deseja salvar na sua planilha e postar no Feed?")) {
+            if(confirm("Treino finalizado! Deseja guardar na sua planilha e publicar no Feed?")) {
                 window.GPSTracker.saveWorkout();
             } else {
                 window.GPSTracker.reset();
@@ -1034,7 +1032,7 @@ window.GPSTracker = {
         document.getElementById('gps-pace').innerText = `--:--`;
     },
     saveWorkout: async () => {
-        const title = prompt("Dê um título para sua corrida:", "Corrida Livre (LeRunners GPS)");
+        const title = prompt("Dê um título para a sua corrida:", "Corrida Livre (LeRunners GPS)");
         if(!title) { window.GPSTracker.resume(); return; }
         
         const km = (window.GPSTracker.totalDistance / 1000).toFixed(2);
@@ -1050,7 +1048,7 @@ window.GPSTracker = {
 
         const workoutData = {
             title: title,
-            date: new Date().toISOString().split('T')[0],
+            date: new Date().toISOString(),
             distancia: km + " km", // Compatibility match com o banco atual
             tempo: timeStr,
             pace: paceStr,
@@ -1070,11 +1068,11 @@ window.GPSTracker = {
             if(AppPrincipal.state.userData.photoUrl) publicData.ownerPhotoUrl = AppPrincipal.state.userData.photoUrl;
             await dbRef.ref(`publicWorkouts`).push(publicData);
             
-            alert("Treino salvo com sucesso! O Coach já tem acesso.");
+            alert("Treino guardado com sucesso! O Coach já tem acesso.");
             window.GPSTracker.reset();
             window.GPSTracker.close();
         } catch(e) {
-            console.error(e); alert("Erro de conexão ao salvar corrida.");
+            console.error(e); alert("Erro de conexão ao guardar corrida.");
         }
     }
 };
@@ -1117,7 +1115,7 @@ const AuthLogic = {
     handleLogin: (e) => {
         e.preventDefault();
         const email = document.getElementById('loginEmail').value; const password = document.getElementById('loginPassword').value;
-        AuthLogic.elements.loginErrorMsg.textContent = "Conectando...";
+        AuthLogic.elements.loginErrorMsg.textContent = "A conectar...";
         AuthLogic.auth.signInWithEmailAndPassword(email, password).catch(err => AuthLogic.elements.loginErrorMsg.textContent = "Acesso Negado: Credenciais inválidas.");
     },
     handleRegister: (e) => {

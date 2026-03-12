@@ -2,9 +2,6 @@
 /* ARQUIVO DE MÓDULOS (V7.3 - COFRE DE APIS & STRAVA COMPLIANCE)
 /* =================================================================== */
 
-// ===================================================================
-// 3. AdminPanel (Lógica do Painel Coach)
-// ===================================================================
 const AdminPanel = {
     state: {},
     elements: {},
@@ -24,11 +21,11 @@ const AdminPanel = {
             // Abas
             tabPrescreverBtn: document.querySelector('[data-tab="prescrever"]'),
             tabKpisBtn: document.querySelector('[data-tab="kpis"]'),
-            tabConfiguracoesBtn: document.querySelector('[data-tab="configuracoes"]'), // <--- NOVO COFRE
+            tabConfiguracoesBtn: document.querySelector('[data-tab="configuracoes"]'), // NOVO COFRE
             
             adminTabPrescrever: document.getElementById('admin-tab-prescrever'),
             adminTabKpis: document.getElementById('admin-tab-kpis'),
-            adminTabConfiguracoes: document.getElementById('admin-tab-configuracoes'), // <--- NOVO COFRE
+            adminTabConfiguracoes: document.getElementById('admin-tab-configuracoes'), // NOVO COFRE
             
             // Cofre de APIs
             apiConfigForm: document.getElementById('api-config-form'),
@@ -61,14 +58,14 @@ const AdminPanel = {
         AdminPanel.loadAthletes();
         AdminPanel.setupListeners();
         AdminPanel.setupTabs();
-        AdminPanel.loadConfigToForm(); // <--- PREENCHE O COFRE
+        AdminPanel.loadConfigToForm(); 
     },
 
     setupTabs: () => {
         const tabs = [
             { btn: AdminPanel.elements.tabPrescreverBtn, content: AdminPanel.elements.adminTabPrescrever },
             { btn: AdminPanel.elements.tabKpisBtn, content: AdminPanel.elements.adminTabKpis },
-            { btn: AdminPanel.elements.tabConfiguracoesBtn, content: AdminPanel.elements.adminTabConfiguracoes } // <--- NOVO
+            { btn: AdminPanel.elements.tabConfiguracoesBtn, content: AdminPanel.elements.adminTabConfiguracoes } 
         ];
 
         tabs.forEach(t => {
@@ -85,7 +82,6 @@ const AdminPanel = {
         });
     },
 
-    // --- NOVA LÓGICA DO COFRE DE APIS ---
     loadConfigToForm: () => {
         AdminPanel.state.db.ref('config/apiKeys').once('value', snap => {
             if(snap.exists()) {
@@ -115,7 +111,6 @@ const AdminPanel = {
         AdminPanel.state.db.ref('config/apiKeys').update(payload)
             .then(() => {
                 alert("Configurações salvas e criptografadas no cofre de dados!");
-                // O listener global no app.js vai atualizar as variaveis em tempo real
             })
             .catch(err => alert("Erro ao salvar: " + err.message))
             .finally(() => {
@@ -154,7 +149,6 @@ const AdminPanel = {
             const velocidade = AdminPanel.elements.workoutVelocidade.value;
             const observacoes = AdminPanel.elements.workoutObservacoes.value;
 
-            // Formatação bonita para exibição (mesclando os campos no body)
             let detailsHtml = `🎯 Modalidade: ${modalidade}\n`;
             detailsHtml += `🏃 Tipo: ${tipo}\n`;
             detailsHtml += `🔥 Intensidade: ${intensidade}\n`;
@@ -168,7 +162,7 @@ const AdminPanel = {
             AdminPanel.state.db.ref(`workouts/${AdminPanel.state.selectedAthleteId}`).push({
                 date: date,
                 title: title,
-                body: detailsHtml, // Salvando tudo formatado no body
+                body: detailsHtml,
                 status: 'planejado',
                 timestamp: Date.now()
             }).then(() => {
@@ -182,7 +176,7 @@ const AdminPanel = {
                 const uid = AdminPanel.state.selectedAthleteId;
                 AdminPanel.state.db.ref(`users/${uid}`).remove();
                 AdminPanel.state.db.ref(`workouts/${uid}`).remove();
-                AdminPanel.state.db.ref(`clinicalAnalysis/${uid}`).remove(); // Remove historico de IA tambem
+                AdminPanel.state.db.ref(`clinicalAnalysis/${uid}`).remove(); 
                 AdminPanel.state.selectedAthleteId = null;
                 AdminPanel.elements.athleteDetailContent.classList.add('hidden');
                 AdminPanel.elements.athleteDetailName.textContent = "Selecione um Atleta";
@@ -191,7 +185,6 @@ const AdminPanel = {
             }
         });
 
-        // Evento para chamar a IA no app.js (Bridge)
         AdminPanel.elements.analyzeAthleteBtnIa.addEventListener('click', () => {
             if(AdminPanel.state.selectedAthleteId && typeof AppPrincipal !== 'undefined') {
                 AppPrincipal.generateIaAnalysis(AdminPanel.state.selectedAthleteId);
@@ -246,7 +239,6 @@ const AdminPanel = {
                         const div = document.createElement('div');
                         div.className = 'athlete-list-item';
                         
-                        // Avatar no Admin List
                         const photoHtml = data.photoUrl ? 
                             `<img src="${data.photoUrl}" style="width:30px; height:30px; border-radius:50%; object-fit:cover; margin-right:10px;">` :
                             `<div style="width:30px; height:30px; border-radius:50%; background:var(--primary-color); color:white; display:flex; align-items:center; justify-content:center; margin-right:10px; font-weight:bold; font-size:12px;">${data.name.charAt(0)}</div>`;
@@ -278,7 +270,7 @@ const AdminPanel = {
             if (snapshot.exists()) {
                 const workouts = [];
                 snapshot.forEach(child => { workouts.push({ id: child.key, ...child.val() }); });
-                workouts.reverse(); // Mais recentes primeiro
+                workouts.reverse();
 
                 workouts.forEach(w => {
                     const div = document.createElement('div');
@@ -329,7 +321,7 @@ const AdminPanel = {
 
                 history.forEach(item => {
                     const div = document.createElement('div');
-                    div.className = 'workout-card'; // Reutilizando classe visual
+                    div.className = 'workout-card'; 
                     const dateStr = new Date(item.timestamp).toLocaleDateString('pt-BR');
                     
                     div.innerHTML = `
@@ -365,9 +357,6 @@ const AdminPanel = {
     }
 };
 
-// ===================================================================
-// 4. AthletePanel (Lógica do Painel do Atleta)
-// ===================================================================
 const AthletePanel = {
     state: {},
     elements: {},
@@ -401,7 +390,6 @@ const AthletePanel = {
                 const workouts = [];
                 snapshot.forEach(child => { workouts.push({ id: child.key, ...child.val() }); });
                 
-                // Ordena: mais recentes primeiro (ou futuros em cima se quiser)
                 workouts.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                 workouts.forEach(w => {
@@ -436,7 +424,6 @@ const AthletePanel = {
                         </div>
                     `;
                     
-                    // Clicar no card abre o modal de feedback/comentários
                     div.addEventListener('click', () => {
                         if(typeof AppPrincipal !== 'undefined') AppPrincipal.openFeedbackModal(w.id, uid);
                     });
@@ -450,9 +437,6 @@ const AthletePanel = {
     }
 };
 
-// ===================================================================
-// 5. FeedPanel (Social / Comunidade)
-// ===================================================================
 const FeedPanel = {
     state: {},
     elements: {},
@@ -481,7 +465,6 @@ const FeedPanel = {
                     const div = document.createElement('div');
                     div.className = 'workout-card';
                     
-                    // Lógica de Avatar (V3.0)
                     const avatarUrl = post.ownerPhotoUrl || `https://placehold.co/150x150/4169E1/FFFFFF?text=${post.ownerName.charAt(0)}`;
 
                     div.innerHTML = `
@@ -514,7 +497,6 @@ const FeedPanel = {
                         </div>
                     `;
 
-                    // Clique na foto ou nome abre perfil (V3.2)
                     const avatarImg = div.querySelector('.athlete-avatar');
                     const nameSpan = div.querySelector('.athlete-name');
                     const openProfileHandler = (e) => {
@@ -524,8 +506,6 @@ const FeedPanel = {
                     avatarImg.addEventListener('click', openProfileHandler);
                     nameSpan.addEventListener('click', openProfileHandler);
 
-
-                    // Clicar no card inteiro abre detalhes/comentários
                     div.addEventListener('click', () => {
                          if(typeof AppPrincipal !== 'undefined') AppPrincipal.openFeedbackModal(post.originalId, post.ownerId);
                     });
@@ -581,9 +561,6 @@ const FeedPanel = {
     }
 };
 
-// ===================================================================
-// 6. FinancePanel (Módulo Financeiro V2.8) - PRESERVADO
-// ===================================================================
 const FinancePanel = {
     state: { db: null, currentUser: null, products: {} },
     elements: {},
@@ -638,7 +615,7 @@ const FinancePanel = {
             btn.addEventListener('click', () => {
                 btns.forEach(b => b.classList.remove('active'));
                 contents.forEach(c => c.classList.add('hidden'));
-                contents.forEach(c => c.classList.remove('active')); // Reset safe
+                contents.forEach(c => c.classList.remove('active')); 
 
                 btn.classList.add('active');
                 contents[index].classList.remove('hidden');
@@ -757,7 +734,7 @@ const FinancePanel = {
             if (snap.exists()) {
                 const trxs = [];
                 snap.forEach(child => trxs.push({id: child.key, ...child.val()}));
-                trxs.sort((a,b) => new Date(b.date) - new Date(a.date)); // Mais recentes
+                trxs.sort((a,b) => new Date(b.date) - new Date(a.date));
 
                 trxs.forEach(t => {
                     const isReceita = t.type === 'receita';
@@ -838,20 +815,17 @@ const FinancePanel = {
             payload.studentId = studentId;
         }
 
-        // Lógica de abatimento/incremento de estoque automático
         if (category === 'Venda' && productId) {
-            FinancePanel.updateStock(productId, -1); // Baixa 1 no estoque
+            FinancePanel.updateStock(productId, -1);
             payload.productId = productId;
         } else if (category === 'Fornecedor' && productId) {
-            // Se for compra pro fornecedor, vamos assumir que comprou 1 unidade pro estoque.
-            // Para sistemas complexos, pediria a QTD da compra.
             FinancePanel.updateStock(productId, 1);
             payload.productId = productId;
         }
 
         FinancePanel.state.db.ref('finance/transactions').push(payload).then(() => {
             FinancePanel.elements.transactionForm.reset();
-            FinancePanel.elements.finCategory.dispatchEvent(new Event('change')); // Reseta selects
+            FinancePanel.elements.finCategory.dispatchEvent(new Event('change')); 
         });
     },
 

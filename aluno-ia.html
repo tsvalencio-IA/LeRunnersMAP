@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LeRunners IA - Painel do Atleta</title>
+    
+    <link rel="stylesheet" href="css/styles.css">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <link rel="manifest" href="manifest.json">
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+</head>
+<body>
+
+    <div id="loader" style="position:fixed; top:0; left:0; width:100%; height:100%; background:white; z-index:9999; display:flex; justify-content:center; align-items:center; flex-direction:column;">
+        <img src="img/logo-192.png" style="width:80px; margin-bottom:15px;">
+        <div class="spinner"></div>
+        <p style="color:#666; margin-top:10px;">Carregando Inteligência...</p>
+    </div>
+
+    <div id="auth-container" class="hidden" style="padding:20px; max-width:400px; margin:0 auto; margin-top:50px;">
+        <div style="text-align:center; margin-bottom:30px;">
+            <img src="img/logo-192.png" style="width:100px;">
+            <h2 style="color:var(--primary-color);">LeRunners <span style="background:#28a745; color:white; padding:2px 6px; border-radius:4px; font-size:0.6em;">IA</span></h2>
+        </div>
+
+        <form id="login-form">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="loginEmail" required placeholder="seu@email.com">
+            </div>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" id="loginPassword" required placeholder="******">
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;">Entrar</button>
+            <p style="text-align:center; margin-top:15px;">
+                Ainda não tem conta? <a href="#" id="toggleToRegister">Cadastre-se</a>
+            </p>
+        </form>
+
+        <form id="register-form" class="hidden">
+            <div class="form-group">
+                <label>Nome Completo</label>
+                <input type="text" id="registerName" required placeholder="Ex: Thiago Ventura">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="registerEmail" required>
+            </div>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" id="registerPassword" required>
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;">Criar Conta</button>
+            <p style="text-align:center; margin-top:15px;">
+                Já tem conta? <a href="#" id="toggleToLogin">Fazer Login</a>
+            </p>
+        </form>
+    </div>
+
+    <div id="app-container" class="hidden">
+        
+        <header style="background:white; padding:15px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 5px rgba(0,0,0,0.05); position:sticky; top:0; z-index:100;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <img src="img/logo-192.png" style="height:30px;">
+                <h3 style="color:var(--primary-color); margin:0;">LeRunners <span style="font-size:0.7em; background:#28a745; color:white; padding:1px 4px; border-radius:3px;">IA</span></h3>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span id="user-name-display" style="font-size:0.9rem; font-weight:bold; color:#555;">Atleta</span>
+                <button id="btn-logout" style="background:#dc3545; color:white; border:none; border-radius:4px; padding:5px 10px;"><i class='bx bx-log-out'></i></button>
+            </div>
+        </header>
+
+        <main style="padding:15px; max-width:800px; margin:0 auto;">
+
+            <div class="card" style="margin-bottom:20px; border-left:4px solid #fc4c02;">
+                <h4 style="margin-top:0;"><i class='bx bx-pulse'></i> 1. Sincronização de Dados</h4>
+                <p style="font-size:0.9em; color:#666;">Para a IA atuar como Fisiologista, ela precisa ler seus treinos passados.</p>
+                
+                <button id="btn-connect-strava" class="hidden" style="background:#fc4c02; color:white; width:100%; padding:10px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">
+                    <i class='bx bxl-strava'></i> Conectar Strava
+                </button>
+                
+                <button id="btn-sync-strava" class="hidden" style="background:#000080; color:white; width:100%; padding:10px; border:none; border-radius:5px; font-weight:bold; cursor:pointer;">
+                    <i class='bx bx-refresh'></i> SINCRONIZAR AGORA
+                </button>
+                <div id="status-strava" style="margin-top:10px; font-size:0.85em; color:#28a745; font-weight:bold;"></div>
+            </div>
+
+            <div class="card" style="margin-bottom:20px; border-left:4px solid #000080;">
+                <h4 style="margin-top:0;"><i class='bx bx-brain'></i> 2. Fisiologista Virtual</h4>
+                <p style="font-size:0.9em; color:#666;">Com base no seu histórico real, a IA vai prescrever seus treinos e avaliar sua evolução.</p>
+                
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button id="btn-analyze-progress" style="flex:1; background:#4a90e2; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer; font-weight:bold;">
+                        <i class='bx bx-line-chart'></i> ANALISAR PROGRESSO
+                    </button>
+                    <button id="btn-generate-plan" style="flex:1; background:#000080; color:white; border:none; padding:10px; border-radius:5px; cursor:pointer; font-weight:bold;">
+                        <i class='bx bx-run'></i> GERAR NOVA PLANILHA
+                    </button>
+                </div>
+                <div id="ia-loading" class="hidden" style="margin-top:10px; text-align:center; color:#000080; font-style:italic;">
+                    <i class='bx bx-loader-alt bx-spin'></i> O Fisiologista está pensando...
+                </div>
+            </div>
+
+            <div class="tabs-nav" style="display:flex; gap:10px; margin-bottom:20px; justify-content:center;">
+                <button id="btn-tab-plan" onclick="AppIA.switchTab('plan')" style="padding:10px 20px; background:#007bff; color:white; border:none; border-radius:20px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    📅 Minha Planilha
+                </button>
+                <button id="btn-tab-feed" onclick="AppIA.switchTab('feed')" style="padding:10px 20px; background:#eee; color:#555; border:none; border-radius:20px; font-weight:bold; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    🌍 Feed da Galera
+                </button>
+            </div>
+
+            <div id="view-plan">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 style="color:#000080; margin:0;">Minha Planilha</h3>
+                    <button id="btn-log-manual" style="background:#4a90e2; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">
+                        <i class='bx bx-plus'></i> Atividade Avulsa
+                    </button>
+                </div>
+                <div id="workout-list"></div>
+            </div>
+
+            <div id="view-feed" class="hidden">
+                <h3 style="color:#000080; margin-bottom:15px; text-align:center;">Últimos Treinos da Equipe</h3>
+                <div id="feed-loading" style="text-align:center; padding:20px; color:#666;">Carregando feed...</div>
+                <div id="feed-list" style="display:flex; flex-direction:column; gap:15px;"></div>
+            </div>
+
+        </main>
+    </div>
+
+    <div id="pending-view" class="hidden" style="text-align:center; padding:50px 20px;">
+        <i class='bx bx-time-five' style="font-size:4rem; color:#f0ad4e;"></i>
+        <h2>Aguardando Aprovação</h2>
+        <p>Seu cadastro foi enviado para a administração da LeRunners.</p>
+        <button id="btn-logout-pending" style="margin-top:20px; padding:10px 20px;">Sair</button>
+    </div>
+
+    <div id="ia-report-modal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:2000; display:flex; justify-content:center; align-items:center;">
+        <div style="background:white; width:90%; max-width:600px; max-height:80vh; overflow-y:auto; padding:20px; border-radius:10px; position:relative;">
+            <button id="close-ia-report-modal" style="position:absolute; top:10px; right:10px; background:none; border:none; font-size:1.5rem;">&times;</button>
+            <h3 style="color:#000080; border-bottom:2px solid #eee; padding-bottom:10px;">Relatório do Fisiologista</h3>
+            <div id="ia-report-content" style="white-space:pre-wrap; font-family:sans-serif; line-height:1.6; color:#333;"></div>
+        </div>
+    </div>
+
+    <div id="feedback-modal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:flex; justify-content:center; align-items:center;">
+        <div style="background:white; width:90%; max-width:500px; padding:20px; border-radius:10px; position:relative;">
+            <button id="close-feedback-modal" style="position:absolute; top:10px; right:10px; background:none; border:none; font-size:1.5rem;">&times;</button>
+            <h3 id="feedback-modal-title" style="margin-top:0; color:#000080;">Registrar Treino</h3>
+            
+            <form id="feedback-form">
+                <div class="form-group">
+                    <label>Status do Treino</label>
+                    <select id="workout-status" style="width:100%; padding:8px;">
+                        <option value="realizado">Concluído (Realizado)</option>
+                        <option value="nao_realizado">Não Realizado / Perdido</option>
+                        <option value="planejado">Reagendar / Manter Planejado</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Anexar Foto (IA Vision)</label>
+                    <input type="file" id="photo-upload-input" accept="image/*">
+                    <fieldset id="strava-data-display" class="hidden" style="margin-top:10px; border:1px dashed #fc4c02; padding:10px; background:#fff5f0;">
+                        <legend style="color:#fc4c02; font-size:0.8em;">IA Vision</legend>
+                        <div style="text-align:center;">Carregando dados da foto...</div>
+                    </fieldset>
+                </div>
+
+                <div class="form-group">
+                    <label>Feedback / Sensação (RPE)</label>
+                    <textarea id="workout-feedback-text" rows="3" placeholder="Como você se sentiu? (Ex: Leve, Pesado, Dor na canela...)" style="width:100%; padding:8px;"></textarea>
+                </div>
+
+                <button type="submit" id="save-feedback-btn" class="btn-primary" style="width:100%;">SALVAR REGISTRO</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="log-activity-modal" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:flex; justify-content:center; align-items:center;">
+        <div style="background:white; width:90%; max-width:500px; padding:20px; border-radius:10px; position:relative;">
+            <button id="close-log-activity-modal" style="position:absolute; top:10px; right:10px; background:none; border:none; font-size:1.5rem;">&times;</button>
+            <h3 style="margin-top:0; color:#000080;">Atividade Avulsa</h3>
+            <form id="log-activity-form">
+                <div class="form-group">
+                    <label>Data</label>
+                    <input type="date" id="log-date" required style="width:100%;">
+                </div>
+                <div class="form-group">
+                    <label>Título</label>
+                    <input type="text" id="log-title" placeholder="Ex: Corrida no Parque" required style="width:100%;">
+                </div>
+                <div class="form-group">
+                    <label>Descrição / Detalhes</label>
+                    <textarea id="log-description" rows="3" style="width:100%;"></textarea>
+                </div>
+                <button type="submit" class="btn-primary" style="width:100%;">Salvar</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/aluno-ia.js"></script>
+
+    <script>
+        // Registro do Service Worker (Mantido para PWA)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(reg => console.log('SW registrado'))
+                    .catch(err => console.log('SW falhou:', err));
+            });
+        }
+    </script>
+</body>
+</html>

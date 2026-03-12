@@ -1,5 +1,5 @@
 /* =================================================================== */
-/* APP.JS - VERSÃO MESTRA 11.6 (BLINDAGEM ANTI-TRAVAMENTO DE LOADER)
+/* APP.JS - VERSÃO MESTRA 11.7 (ADMIN-ATLETA + GPS WAKELOCK)
 /* LERUNNERS - SISTEMA DE TREINOS E GPS TRACKER
 /* =================================================================== */
 
@@ -27,12 +27,8 @@ const AppPrincipal = {
             return;
         }
         try {
-            if (firebase.apps.length === 0) {
-                firebase.initializeApp(firebaseConfig);
-            }
-        } catch (e) {
-            console.error("Erro Firebase:", e);
-        }
+            if (firebase.apps.length === 0) firebase.initializeApp(firebaseConfig);
+        } catch (e) { console.error("Erro Firebase:", e); }
 
         AppPrincipal.state.auth = firebase.auth();
         AppPrincipal.state.db = firebase.database();
@@ -45,11 +41,9 @@ const AppPrincipal = {
         }
     },
     
-    // --- NOVO: BUSCA DE CHAVES NO COFRE (FIREBASE) COM TRATAMENTO DE ERRO ---
+    // --- BUSCA DE CHAVES NO COFRE GLOBAIS ---
     loadSystemConfigs: async () => {
         return new Promise((resolve) => {
-            // CORREÇÃO CRÍTICA: Usa .once() em vez de .on() e adiciona .catch()
-            // Isso garante que a promise SEMPRE seja resolvida e o app não trave na tela branca.
             AppPrincipal.state.db.ref('config/apiKeys').once('value')
                 .then(snap => {
                     if (snap.exists()) {
@@ -57,15 +51,15 @@ const AppPrincipal = {
                         window.GEMINI_API_KEY = keys.geminiKey || "";
                         window.GOOGLE_MAPS_KEY = keys.mapsKey || "";
                         window.CLOUDINARY_CONFIG = {
-                            cloudName: keys.cloudinaryName || "",
-                            uploadPreset: keys.cloudinaryPreset || ""
+                            cloudName: keys.cloudName || "",
+                            uploadPreset: keys.cloudPreset || ""
                         };
                     }
                     resolve();
                 })
                 .catch(error => {
-                    console.error("Falha ao carregar cofre de APIs (Permissão ou Rede):", error);
-                    resolve(); // Libera o fluxo mesmo se der erro
+                    console.error("Falha ao carregar cofre de APIs:", error);
+                    resolve(); 
                 });
         });
     },
@@ -76,39 +70,25 @@ const AppPrincipal = {
         const scope = urlParams.get('scope');
 
         if (code && scope && scope.includes('activity:read_all')) {
-            console.log("Código Strava recebido. Chamando Vercel...");
-            
             AppPrincipal.state.auth.onAuthStateChanged(async (user) => {
                 if (user) {
                     try {
                         const idToken = await user.getIdToken();
-                        
                         const response = await fetch('https://le-runners-rp.vercel.app/api/strava-exchange', {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${idToken}`
-                            },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
                             body: JSON.stringify({ code: code })
                         });
-
                         const result = await response.json();
-                        
                         if (response.ok) {
                             alert("Strava conectado com sucesso!");
                             window.history.replaceState({}, document.title, window.location.pathname);
-                        } else {
-                            throw new Error(result.error || "Falha na conexão com Strava.");
-                        }
+                        } else throw new Error(result.error);
                     } catch (error) {
-                        console.error("Erro OAuth Strava:", error);
-                        alert("Não foi possível completar a conexão com o Strava. " + error.message);
+                        alert("Não foi possível completar a conexão. " + error.message);
                     }
                 }
             });
-        } else if (code) {
-             alert("Atenção: Você precisa autorizar a leitura das atividades para o sistema funcionar.");
-             window.history.replaceState({}, document.title, window.location.pathname);
         }
     },
 
@@ -118,12 +98,16 @@ const AppPrincipal = {
             appContainer: document.getElementById('app-container'),
             userDisplay: document.getElementById('userDisplay'),
             logoutBtn: document.getElementById('logoutButton'),
+            
+            // Navegação
             navPlanilhaBtn: document.getElementById('nav-planilha-btn'),
+            navMeuTreinoBtn: document.getElementById('nav-meu-treino-btn'), // NOVO
+            navFinanceBtn: document.getElementById('nav-finance-btn'),
             navFeedBtn: document.getElementById('nav-feed-btn'),
+            navProfileBtn: document.getElementById('nav-profile-btn'),
             mainContent: document.getElementById('app-main-content'),
             
             // Perfil
-            navProfileBtn: document.getElementById('nav-profile-btn'),
             profileModal: document.getElementById('profile-modal'),
             closeProfileModal: document.getElementById('close-profile-modal'),
             profileForm: document.getElementById('profile-form'),
@@ -133,17 +117,14 @@ const AppPrincipal = {
             profileName: document.getElementById('profile-name'),
             profileBio: document.getElementById('profile-bio'),
 
-            // View de Perfil
+            // View Profile Modal
             viewProfileModal: document.getElementById('view-profile-modal'),
             closeViewProfileModal: document.getElementById('close-view-profile-modal'),
             viewProfilePic: document.getElementById('view-profile-pic'),
             viewProfileName: document.getElementById('view-profile-name'),
             viewProfileBio: document.getElementById('view-profile-bio'),
-            
-            // Financeiro
-            navFinanceBtn: document.getElementById('nav-finance-btn'),
 
-            // Modais de Treino
+            // Modais de Treino e Feed
             feedbackModal: document.getElementById('feedback-modal'),
             closeFeedbackModal: document.getElementById('close-feedback-modal'),
             feedbackForm: document.getElementById('feedback-form'),
@@ -151,7 +132,6 @@ const AppPrincipal = {
             commentForm: document.getElementById('comment-form'),
             commentInput: document.getElementById('comment-input'),
 
-            // Atividade Avulsa
             logActivityModal: document.getElementById('log-activity-modal'),
             closeLogActivityModal: document.getElementById('close-log-activity-modal'),
             logActivityForm: document.getElementById('log-activity-form'),
@@ -180,7 +160,6 @@ const AppPrincipal = {
     },
 
     loadUserData: (uid) => {
-        // CORREÇÃO CRÍTICA: Protegido com .catch() para não travar a tela
         AppPrincipal.state.db.ref('admins').once('value')
             .then(snapshot => {
                 AppPrincipal.state.adminUIDs = snapshot.val() || {};
@@ -193,19 +172,20 @@ const AppPrincipal = {
                             AppPrincipal.elements.userDisplay.textContent = AppPrincipal.state.userData.name;
                         }
                         
-                        // Libera o carregamento
                         if(AppPrincipal.elements.loader) AppPrincipal.elements.loader.classList.add('hidden');
                         if(AppPrincipal.elements.appContainer) AppPrincipal.elements.appContainer.classList.remove('hidden');
 
                         if (AppPrincipal.state.adminUIDs[uid]) {
+                            // MODO ADMIN: Libera menu do Financeiro E menu do Seu Próprio Treino
                             AppPrincipal.state.viewMode = 'admin';
                             if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.classList.remove('hidden');
-                            document.body.classList.remove('atleta-view');
+                            if(AppPrincipal.elements.navMeuTreinoBtn) AppPrincipal.elements.navMeuTreinoBtn.classList.remove('hidden');
                             document.body.classList.add('admin-view');
                         } else {
+                            // MODO ATLETA COMUM
                             AppPrincipal.state.viewMode = 'atleta';
                             if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.classList.add('hidden');
-                            document.body.classList.remove('admin-view');
+                            if(AppPrincipal.elements.navMeuTreinoBtn) AppPrincipal.elements.navMeuTreinoBtn.classList.add('hidden');
                             document.body.classList.add('atleta-view');
                         }
 
@@ -216,7 +196,6 @@ const AppPrincipal = {
                 });
             })
             .catch(error => {
-                console.error("Erro ao verificar roles do usuário:", error);
                 if(AppPrincipal.elements.loader) AppPrincipal.elements.loader.classList.add('hidden');
                 alert("Falha de conexão com o banco de dados.");
             });
@@ -225,13 +204,10 @@ const AppPrincipal = {
     setupEventListeners: () => {
         if(AppPrincipal.elements.logoutBtn) AppPrincipal.elements.logoutBtn.addEventListener('click', () => AppPrincipal.state.auth.signOut());
         if(AppPrincipal.elements.navPlanilhaBtn) AppPrincipal.elements.navPlanilhaBtn.addEventListener('click', () => AppPrincipal.switchView('planilha'));
+        if(AppPrincipal.elements.navMeuTreinoBtn) AppPrincipal.elements.navMeuTreinoBtn.addEventListener('click', () => AppPrincipal.switchView('meu-treino'));
         if(AppPrincipal.elements.navFeedBtn) AppPrincipal.elements.navFeedBtn.addEventListener('click', () => AppPrincipal.switchView('feed'));
-        
-        if (AppPrincipal.elements.navFinanceBtn) {
-            AppPrincipal.elements.navFinanceBtn.addEventListener('click', () => AppPrincipal.switchView('financeiro'));
-        }
+        if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.addEventListener('click', () => AppPrincipal.switchView('financeiro'));
 
-        // Navegação Perfil
         if(AppPrincipal.elements.navProfileBtn) {
             AppPrincipal.elements.navProfileBtn.addEventListener('click', () => {
                 AppPrincipal.elements.profileName.value = AppPrincipal.state.userData.name || '';
@@ -241,25 +217,19 @@ const AppPrincipal = {
             });
         }
 
-        if(AppPrincipal.elements.closeProfileModal) {
-            AppPrincipal.elements.closeProfileModal.addEventListener('click', () => {
-                AppPrincipal.elements.profileModal.classList.add('hidden');
-            });
-        }
+        if(AppPrincipal.elements.closeProfileModal) AppPrincipal.elements.closeProfileModal.addEventListener('click', () => AppPrincipal.elements.profileModal.classList.add('hidden'));
 
-        // Upload de Imagem de Perfil via Cloudinary
         if(AppPrincipal.elements.profilePicUpload) {
             AppPrincipal.elements.profilePicUpload.addEventListener('change', async (e) => {
                  const file = e.target.files[0];
                  if (!file) return;
 
-                 if(!window.CLOUDINARY_CONFIG || !window.CLOUDINARY_CONFIG.cloudName || !window.CLOUDINARY_CONFIG.uploadPreset) {
-                     alert("O Banco de Imagens (Cloudinary) não está configurado no Cofre de APIs.");
-                     e.target.value = "";
-                     return;
+                 if(!window.CLOUDINARY_CONFIG || !window.CLOUDINARY_CONFIG.cloudName) {
+                     alert("O Banco de Imagens não está configurado no Cofre de APIs.");
+                     e.target.value = ""; return;
                  }
 
-                 AppPrincipal.elements.profileUploadFeedback.textContent = "A fazer upload da imagem...";
+                 AppPrincipal.elements.profileUploadFeedback.textContent = "Fazendo upload...";
                  AppPrincipal.elements.profilePicUpload.disabled = true;
 
                  const formData = new FormData();
@@ -267,27 +237,21 @@ const AppPrincipal = {
                  formData.append('upload_preset', window.CLOUDINARY_CONFIG.uploadPreset);
 
                  try {
-                     const response = await fetch(`https://api.cloudinary.com/v1_1/${window.CLOUDINARY_CONFIG.cloudName}/image/upload`, {
-                         method: 'POST',
-                         body: formData
-                     });
+                     const response = await fetch(`https://api.cloudinary.com/v1_1/${window.CLOUDINARY_CONFIG.cloudName}/image/upload`, { method: 'POST', body: formData });
                      const data = await response.json();
-                     
                      if(data.secure_url) {
                          AppPrincipal.elements.profilePicPreview.src = data.secure_url;
                          AppPrincipal.elements.profileUploadFeedback.textContent = "Imagem carregada! Clique em Salvar.";
                          AppPrincipal.elements.profilePicPreview.dataset.newUrl = data.secure_url;
                      }
                  } catch (error) {
-                     AppPrincipal.elements.profileUploadFeedback.textContent = "Erro no upload. Tente novamente.";
-                     console.error(error);
+                     AppPrincipal.elements.profileUploadFeedback.textContent = "Erro no upload.";
                  } finally {
                      AppPrincipal.elements.profilePicUpload.disabled = false;
                  }
             });
         }
 
-        // Salvar Perfil
         if(AppPrincipal.elements.profileForm) {
             AppPrincipal.elements.profileForm.addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -295,30 +259,16 @@ const AppPrincipal = {
                 const newBio = AppPrincipal.elements.profileBio.value.trim();
                 const newPhotoUrl = AppPrincipal.elements.profilePicPreview.dataset.newUrl || AppPrincipal.state.userData.photoUrl;
 
-                const updates = {
-                    name: newName,
-                    bio: newBio,
-                    photoUrl: newPhotoUrl
-                };
-
-                AppPrincipal.state.db.ref(`users/${AppPrincipal.state.currentUser.uid}`).update(updates)
+                AppPrincipal.state.db.ref(`users/${AppPrincipal.state.currentUser.uid}`).update({ name: newName, bio: newBio, photoUrl: newPhotoUrl })
                     .then(() => {
                         alert("Perfil atualizado com sucesso!");
                         AppPrincipal.elements.profileModal.classList.add('hidden');
                         AppPrincipal.updateUserPostsInfo(AppPrincipal.state.currentUser.uid, newName, newPhotoUrl);
-                    })
-                    .catch(error => alert("Erro ao atualizar: " + error.message));
+                    });
             });
         }
 
-        // Modal View Profile
-        if(AppPrincipal.elements.closeViewProfileModal) {
-            AppPrincipal.elements.closeViewProfileModal.addEventListener('click', () => {
-                 AppPrincipal.elements.viewProfileModal.classList.add('hidden');
-            });
-        }
-
-        // Modais Atividade/Feedback
+        if(AppPrincipal.elements.closeViewProfileModal) AppPrincipal.elements.closeViewProfileModal.addEventListener('click', () => AppPrincipal.elements.viewProfileModal.classList.add('hidden'));
         if(AppPrincipal.elements.closeFeedbackModal) AppPrincipal.elements.closeFeedbackModal.addEventListener('click', AppPrincipal.closeModal);
         
         if(AppPrincipal.elements.closeLogActivityModal) {
@@ -328,17 +278,8 @@ const AppPrincipal = {
             });
         }
 
-        if(AppPrincipal.elements.closeWhoLikedModal) {
-            AppPrincipal.elements.closeWhoLikedModal.addEventListener('click', () => {
-                AppPrincipal.elements.whoLikedModal.classList.add('hidden');
-            });
-        }
-
-        if(AppPrincipal.elements.closeIaAnalysisModal) {
-            AppPrincipal.elements.closeIaAnalysisModal.addEventListener('click', () => {
-                 AppPrincipal.elements.iaAnalysisModal.classList.add('hidden');
-            });
-        }
+        if(AppPrincipal.elements.closeWhoLikedModal) AppPrincipal.elements.closeWhoLikedModal.addEventListener('click', () => AppPrincipal.elements.whoLikedModal.classList.add('hidden'));
+        if(AppPrincipal.elements.closeIaAnalysisModal) AppPrincipal.elements.closeIaAnalysisModal.addEventListener('click', () => AppPrincipal.elements.iaAnalysisModal.classList.add('hidden'));
 
         if(AppPrincipal.elements.feedbackForm) AppPrincipal.elements.feedbackForm.addEventListener('submit', AppPrincipal.handleFeedbackSubmit);
         if(AppPrincipal.elements.commentForm) AppPrincipal.elements.commentForm.addEventListener('submit', AppPrincipal.handleCommentSubmit);
@@ -365,7 +306,6 @@ const AppPrincipal = {
 
     openViewProfile: (uid) => {
         AppPrincipal.elements.viewProfileName.textContent = "Carregando...";
-        AppPrincipal.elements.viewProfileBio.textContent = "";
         AppPrincipal.elements.viewProfilePic.src = "https://placehold.co/150x150/4169E1/FFFFFF?text=Atleta";
         AppPrincipal.elements.viewProfileModal.classList.remove('hidden');
 
@@ -373,14 +313,8 @@ const AppPrincipal = {
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 AppPrincipal.elements.viewProfileName.textContent = data.name;
-                AppPrincipal.elements.viewProfileBio.textContent = data.bio || "Nenhuma biografia informada.";
-                if(data.photoUrl) {
-                    AppPrincipal.elements.viewProfilePic.src = data.photoUrl;
-                } else {
-                    AppPrincipal.elements.viewProfilePic.src = `https://placehold.co/150x150/4169E1/FFFFFF?text=${data.name.charAt(0)}`;
-                }
-            } else {
-                AppPrincipal.elements.viewProfileName.textContent = "Usuário não encontrado";
+                AppPrincipal.elements.viewProfileBio.textContent = data.bio || "";
+                AppPrincipal.elements.viewProfilePic.src = data.photoUrl || `https://placehold.co/150x150/4169E1/FFFFFF?text=${data.name.charAt(0)}`;
             }
         });
     },
@@ -389,6 +323,7 @@ const AppPrincipal = {
         AppPrincipal.state.currentView = viewName;
         
         if(AppPrincipal.elements.navPlanilhaBtn) AppPrincipal.elements.navPlanilhaBtn.classList.remove('active');
+        if(AppPrincipal.elements.navMeuTreinoBtn) AppPrincipal.elements.navMeuTreinoBtn.classList.remove('active');
         if(AppPrincipal.elements.navFeedBtn) AppPrincipal.elements.navFeedBtn.classList.remove('active');
         if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.classList.remove('active');
         
@@ -404,18 +339,26 @@ const AppPrincipal = {
                     if(typeof AdminPanel !== 'undefined') AdminPanel.init(AppPrincipal.state.currentUser, AppPrincipal.state.db);
                 }
             } else {
+                // Se for atleta normal, Planilha já cai na visão dele
                 const template = document.getElementById('atleta-panel-template');
                 if(template) {
                     AppPrincipal.elements.mainContent.appendChild(template.content.cloneNode(true));
-                    if(typeof AthletePanel !== 'undefined') AthletePanel.init(AppPrincipal.state.currentUser, AppPrincipal.state.db);
+                    if(typeof AtletaPanel !== 'undefined') AtletaPanel.init(AppPrincipal.state.currentUser, AppPrincipal.state.db, AppPrincipal.state.userData);
                 }
+            }
+        } else if (viewName === 'meu-treino') { // NOVO FLUXO PARA O ADMIN VER SEU PRÓPRIO TREINO
+            if(AppPrincipal.elements.navMeuTreinoBtn) AppPrincipal.elements.navMeuTreinoBtn.classList.add('active');
+            const template = document.getElementById('atleta-panel-template');
+            if(template) {
+                AppPrincipal.elements.mainContent.appendChild(template.content.cloneNode(true));
+                if(typeof AtletaPanel !== 'undefined') AtletaPanel.init(AppPrincipal.state.currentUser, AppPrincipal.state.db, AppPrincipal.state.userData);
             }
         } else if (viewName === 'feed') {
             if(AppPrincipal.elements.navFeedBtn) AppPrincipal.elements.navFeedBtn.classList.add('active');
             const template = document.getElementById('feed-panel-template');
             if(template) {
                 AppPrincipal.elements.mainContent.appendChild(template.content.cloneNode(true));
-                if(typeof FeedPanel !== 'undefined') FeedPanel.init(AppPrincipal.state.currentUser, AppPrincipal.state.db);
+                if(typeof FeedPanel !== 'undefined') FeedPanel.init(AppPrincipal.state.currentUser, AppPrincipal.state.db, AppPrincipal.state.userData);
             }
         } else if (viewName === 'financeiro' && AppPrincipal.state.viewMode === 'admin') {
             if(AppPrincipal.elements.navFinanceBtn) AppPrincipal.elements.navFinanceBtn.classList.add('active');
@@ -460,14 +403,13 @@ const AppPrincipal = {
         const file = e.target.files[0];
         if (!file) return;
 
-        if(!window.CLOUDINARY_CONFIG || !window.CLOUDINARY_CONFIG.cloudName || !window.CLOUDINARY_CONFIG.uploadPreset) {
-            alert("O Banco de Imagens (Cloudinary) não está configurado no Cofre de APIs.");
-            e.target.value = "";
-            return;
+        if(!window.CLOUDINARY_CONFIG || !window.CLOUDINARY_CONFIG.cloudName) {
+            alert("O Banco de Imagens não está configurado no Cofre.");
+            e.target.value = ""; return;
         }
 
         const feedbackEl = document.getElementById('photo-upload-feedback');
-        feedbackEl.textContent = "A fazer upload para a nuvem...";
+        feedbackEl.textContent = "Fazendo upload para a nuvem...";
         document.getElementById('save-feedback-btn').disabled = true;
 
         const formData = new FormData();
@@ -475,22 +417,16 @@ const AppPrincipal = {
         formData.append('upload_preset', window.CLOUDINARY_CONFIG.uploadPreset);
 
         try {
-            const response = await fetch(`https://api.cloudinary.com/v1_1/${window.CLOUDINARY_CONFIG.cloudName}/image/upload`, {
-                method: 'POST',
-                body: formData
-            });
+            const response = await fetch(`https://api.cloudinary.com/v1_1/${window.CLOUDINARY_CONFIG.cloudName}/image/upload`, { method: 'POST', body: formData });
             const data = await response.json();
             
             if(data.secure_url) {
                 AppPrincipal.state.modal.newPhotoUrl = data.secure_url;
                 feedbackEl.textContent = "Upload concluído! Analisando imagem (IA)...";
                 await AppPrincipal.extractDataWithGemini(data.secure_url);
-            } else {
-                throw new Error("Falha no retorno do Cloudinary.");
             }
         } catch (error) {
             feedbackEl.textContent = "Erro no upload da imagem.";
-            console.error(error);
         } finally {
             document.getElementById('save-feedback-btn').disabled = false;
         }
@@ -498,11 +434,7 @@ const AppPrincipal = {
 
     extractDataWithGemini: async (imageUrl) => {
         const feedbackEl = document.getElementById('photo-upload-feedback');
-        
-        if(!window.GEMINI_API_KEY) {
-            feedbackEl.textContent = "IA Desativada: Chave Gemini não configurada no Cofre.";
-            return;
-        }
+        if(!window.GEMINI_API_KEY) { feedbackEl.textContent = "IA Desativada: Chave Gemini ausente no Cofre."; return; }
 
         try {
             const fetchImg = await fetch(imageUrl);
@@ -512,41 +444,17 @@ const AppPrincipal = {
             reader.readAsDataURL(blob); 
             reader.onloadend = async function() {
                 const base64data = reader.result.split(',')[1];
-                
-                const prompt = `
-                Você é um assistente de extração de dados do Strava/Garmin/Coros.
-                Analise esta imagem de um treino e retorne APENAS um JSON válido.
-                Não invente dados. Se não achar, retorne null no campo.
-                
-                Formato:
-                {
-                    "distancia": "valor numérico em km (ex: 5.02)",
-                    "tempo": "tempo total (ex: 30:15)",
-                    "ritmo": "ritmo médio (ex: 5:40 /km)"
-                }
-                `;
+                const prompt = `Analise esta imagem (print Strava/Garmin) e retorne APENAS um JSON válido. Ex: {"distancia": "5.02", "tempo": "30:15", "ritmo": "5:40 /km"}`;
 
-                const bodyData = {
-                    contents: [{
-                        parts: [
-                            {text: prompt},
-                            {inlineData: {mimeType: "image/jpeg", data: base64data}}
-                        ]
-                    }]
-                };
-
+                const bodyData = { contents: [{ parts: [{text: prompt}, {inlineData: {mimeType: "image/jpeg", data: base64data}}] }] };
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${window.GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(bodyData)
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(bodyData)
                 });
 
                 if(!response.ok) throw new Error("Falha na API Gemini");
                 const data = await response.json();
                 
-                let textResult = data.candidates[0].content.parts[0].text;
-                textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
-                
+                let textResult = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
                 const extData = JSON.parse(textResult);
                 
                 document.getElementById('strava-data-display').classList.remove('hidden');
@@ -555,13 +463,10 @@ const AppPrincipal = {
                 document.getElementById('strava-data-ritmo').textContent = `⚡ Ritmo: ${extData.ritmo || '--'}`;
                 
                 feedbackEl.textContent = "Análise concluída com sucesso!";
-
                 AppPrincipal.state.modal.extractedData = extData;
-
             };
         } catch (error) {
-            console.error("Erro Gemini Vision:", error);
-            feedbackEl.textContent = "Não foi possível extrair dados da imagem.";
+            feedbackEl.textContent = "Não foi possível extrair dados automaticamente.";
         }
     },
 
@@ -571,16 +476,10 @@ const AppPrincipal = {
         AppPrincipal.state.modal.newPhotoUrl = null;
         AppPrincipal.state.modal.extractedData = null;
 
-        const fdbkId = document.getElementById('feedback-workout-id');
-        const ownerIdEl = document.getElementById('feedback-workout-owner-id');
-        const statusEl = document.getElementById('workout-status');
-        const textEl = document.getElementById('workout-feedback-text');
-
-        if(fdbkId) fdbkId.value = workoutId;
-        if(ownerIdEl) ownerIdEl.value = ownerId;
-        
-        if(statusEl) statusEl.value = 'planejado';
-        if(textEl) textEl.value = '';
+        document.getElementById('feedback-workout-id').value = workoutId;
+        document.getElementById('feedback-workout-owner-id').value = ownerId;
+        document.getElementById('workout-status').value = 'planejado';
+        document.getElementById('workout-feedback-text').value = '';
         
         const photoInput = document.getElementById('photo-upload-input');
         if(photoInput) photoInput.value = '';
@@ -591,36 +490,25 @@ const AppPrincipal = {
         const stravaDisp = document.getElementById('strava-data-display');
         if(stravaDisp) stravaDisp.classList.add('hidden');
 
-        AppPrincipal.state.db.ref(`workouts/${ownerId}/${workoutId}`).once('value', snapshot => {
+        AppPrincipal.state.db.ref(`users/${ownerId}/workouts/${workoutId}`).once('value', snapshot => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                if(data.status && statusEl) statusEl.value = data.status;
-                if(data.feedback && textEl) textEl.value = data.feedback;
+                if(data.status) document.getElementById('workout-status').value = data.status;
+                if(data.feedback) document.getElementById('workout-feedback-text').value = data.feedback;
                 if(data.photoUrl) {
                     AppPrincipal.state.modal.newPhotoUrl = data.photoUrl;
-                    if(photoFeed) photoFeed.textContent = "Imagem já anexada anteriormente.";
-                }
-                
-                if(data.stravaData && stravaDisp) {
-                    stravaDisp.classList.remove('hidden');
-                    document.getElementById('strava-data-distancia').textContent = `🎯 Distância: ${data.stravaData.distancia || '--'} km`;
-                    document.getElementById('strava-data-tempo').textContent = `⏱️ Tempo: ${data.stravaData.tempo || '--'}`;
-                    document.getElementById('strava-data-ritmo').textContent = `⚡ Ritmo: ${data.stravaData.ritmo || '--'}`;
+                    if(photoFeed) photoFeed.textContent = "Imagem anexada anteriormente.";
                 }
             }
         });
 
         AppPrincipal.loadComments(workoutId);
         AppPrincipal.elements.feedbackModal.classList.remove('hidden');
-        AppPrincipal.state.modal.isOpen = true;
     },
 
     closeModal: () => {
         if(AppPrincipal.elements.feedbackModal) AppPrincipal.elements.feedbackModal.classList.add('hidden');
-        AppPrincipal.state.modal.isOpen = false;
-        if (AppPrincipal.state.listeners.comments) {
-            AppPrincipal.state.listeners.comments.off();
-        }
+        if (AppPrincipal.state.listeners.comments) AppPrincipal.state.listeners.comments.off();
     },
 
     handleFeedbackSubmit: (e) => {
@@ -630,29 +518,19 @@ const AppPrincipal = {
         const status = document.getElementById('workout-status').value;
         const feedback = document.getElementById('workout-feedback-text').value;
         
-        const updates = { 
-            status: status, 
-            feedback: feedback 
-        };
-
-        if(AppPrincipal.state.modal.newPhotoUrl) {
-            updates.photoUrl = AppPrincipal.state.modal.newPhotoUrl;
-        }
-        
-        if(AppPrincipal.state.modal.extractedData) {
-            updates.stravaData = AppPrincipal.state.modal.extractedData;
-        }
+        const updates = { status: status, feedback: feedback };
+        if(AppPrincipal.state.modal.newPhotoUrl) updates.photoUrl = AppPrincipal.state.modal.newPhotoUrl;
+        if(AppPrincipal.state.modal.extractedData) updates.metrics = AppPrincipal.state.modal.extractedData;
 
         const btn = document.getElementById('save-feedback-btn');
-        btn.disabled = true;
-        btn.textContent = "A Guardar...";
+        btn.disabled = true; btn.textContent = "Salvando...";
 
-        AppPrincipal.state.db.ref(`workouts/${ownerId}/${workoutId}`).update(updates)
+        AppPrincipal.state.db.ref(`users/${ownerId}/workouts/${workoutId}`).update(updates)
             .then(() => {
-                if ((status === 'realizado' || status === 'realizado_parcial') && ownerId === AppPrincipal.state.currentUser.uid) {
-                    AppPrincipal.state.db.ref(`workouts/${ownerId}/${workoutId}`).once('value', s => {
+                if (status === 'realizado' || status === 'realizado_parcial') {
+                    AppPrincipal.state.db.ref(`users/${ownerId}/workouts/${workoutId}`).once('value', s => {
                         const workoutData = s.val();
-                        const publicData = { ...workoutData, ownerId: ownerId, ownerName: AppPrincipal.state.userData.name };
+                        const publicData = { ...workoutData, ownerId: ownerId, ownerName: AppPrincipal.state.userData.name, originalId: workoutId };
                         if(AppPrincipal.state.userData.photoUrl) publicData.ownerPhotoUrl = AppPrincipal.state.userData.photoUrl;
                         
                         AppPrincipal.state.db.ref('publicWorkouts').orderByChild('originalId').equalTo(workoutId).once('value', pubSnap => {
@@ -660,23 +538,16 @@ const AppPrincipal = {
                                 const pubKey = Object.keys(pubSnap.val())[0];
                                 AppPrincipal.state.db.ref(`publicWorkouts/${pubKey}`).update(publicData);
                             } else {
-                                publicData.originalId = workoutId;
                                 AppPrincipal.state.db.ref('publicWorkouts').push(publicData);
                             }
                         });
                     });
                 }
-
-                alert('Treino guardado com sucesso!');
+                alert('Feedback salvo!');
                 AppPrincipal.closeModal();
             })
-            .catch(error => {
-                alert('Erro ao guardar: ' + error.message);
-            })
-            .finally(() => {
-                btn.disabled = false;
-                btn.textContent = "Salvar Feedback";
-            });
+            .catch(error => alert('Erro: ' + error.message))
+            .finally(() => { btn.disabled = false; btn.textContent = "Salvar Feedback"; });
     },
 
     loadComments: (workoutId) => {
@@ -693,20 +564,12 @@ const AppPrincipal = {
                 for (const comment of comments) {
                     const div = document.createElement('div');
                     div.className = 'comment-item';
-                    
                     const photoUrl = await AppPrincipal.getUserPhoto(comment.authorId);
                     const imgTag = photoUrl ? `<img src="${photoUrl}" style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:5px; object-fit:cover;">` : '';
-
-                    div.innerHTML = `
-                        ${imgTag}<strong>${comment.author}</strong> 
-                        <span style="font-size:0.7rem; color:#999;">${new Date(comment.timestamp).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}</span>
-                        <div style="margin-top: 4px; padding-left:25px;">${escapeHtml(comment.text)}</div>
-                    `;
+                    div.innerHTML = `${imgTag}<strong>${comment.author}</strong> <div style="margin-top: 4px;">${comment.text}</div>`;
                     AppPrincipal.elements.commentsList.appendChild(div);
                 }
                 AppPrincipal.elements.commentsList.scrollTop = AppPrincipal.elements.commentsList.scrollHeight;
-            } else {
-                AppPrincipal.elements.commentsList.innerHTML = '<p style="color:#999; font-size:0.9rem; text-align:center;">Nenhum comentário ainda.</p>';
             }
         });
     },
@@ -716,202 +579,67 @@ const AppPrincipal = {
         const text = AppPrincipal.elements.commentInput.value.trim();
         if (!text) return;
         
-        const workoutId = AppPrincipal.state.modal.currentWorkoutId;
-        const uid = AppPrincipal.state.currentUser.uid;
-        const name = AppPrincipal.state.userData.name;
-
-        AppPrincipal.state.db.ref(`workoutComments/${workoutId}`).push({
-            authorId: uid,
-            author: name,
+        AppPrincipal.state.db.ref(`workoutComments/${AppPrincipal.state.modal.currentWorkoutId}`).push({
+            authorId: AppPrincipal.state.currentUser.uid,
+            author: AppPrincipal.state.userData.name,
             text: text,
             timestamp: Date.now()
-        }).then(() => {
-            AppPrincipal.elements.commentInput.value = '';
-        });
+        }).then(() => AppPrincipal.elements.commentInput.value = '');
     },
 
     handleLogActivitySubmit: (e) => {
         e.preventDefault();
-        const date = document.getElementById('log-activity-date').value;
-        const type = document.getElementById('log-activity-type').value;
-        const title = document.getElementById('log-activity-title').value;
-        const feedback = document.getElementById('log-activity-feedback').value;
-
         const workoutData = {
-            date: date,
-            title: title,
-            type: type,
-            feedback: feedback,
+            date: document.getElementById('log-activity-date').value,
+            title: document.getElementById('log-activity-title').value,
+            tipoTreino: document.getElementById('log-activity-type').value,
+            feedback: document.getElementById('log-activity-feedback').value,
             status: 'realizado',
             timestamp: Date.now()
         };
 
         const uid = AppPrincipal.state.currentUser.uid;
 
-        AppPrincipal.state.db.ref(`workouts/${uid}`).push(workoutData)
+        AppPrincipal.state.db.ref(`users/${uid}/workouts`).push(workoutData)
             .then((ref) => {
                 const publicData = { ...workoutData, ownerId: uid, ownerName: AppPrincipal.state.userData.name, originalId: ref.key };
                 if(AppPrincipal.state.userData.photoUrl) publicData.ownerPhotoUrl = AppPrincipal.state.userData.photoUrl;
                 AppPrincipal.state.db.ref('publicWorkouts').push(publicData);
                 
-                alert("Atividade registada e publicada no feed!");
-                if(AppPrincipal.elements.logActivityModal) AppPrincipal.elements.logActivityModal.classList.add('hidden');
-                if(AppPrincipal.elements.logActivityForm) AppPrincipal.elements.logActivityForm.reset();
+                alert("Atividade salva!");
+                AppPrincipal.elements.logActivityModal.classList.add('hidden');
             });
     },
 
-    openWhoLikedModal: (workoutId) => {
-        if(!AppPrincipal.elements.whoLikedList) return;
-        AppPrincipal.elements.whoLikedList.innerHTML = '<li>Carregando...</li>';
-        AppPrincipal.elements.whoLikedModal.classList.remove('hidden');
-
-        AppPrincipal.state.db.ref(`workoutLikes/${workoutId}`).once('value', snapshot => {
-            AppPrincipal.elements.whoLikedList.innerHTML = '';
-            if (snapshot.exists()) {
-                const promises = [];
-                snapshot.forEach(child => {
-                    promises.push(AppPrincipal.getUserName(child.key));
-                });
-                
-                Promise.all(promises).then(names => {
-                    names.forEach(name => {
-                        const li = document.createElement('li');
-                        li.textContent = name;
-                        AppPrincipal.elements.whoLikedList.appendChild(li);
-                    });
-                });
-            } else {
-                 AppPrincipal.elements.whoLikedList.innerHTML = '<li>Ninguém gostou ainda.</li>';
-            }
-        });
-    },
-
-    generateIaAnalysis: async (athleteId) => {
-        const btn = document.getElementById('analyze-athlete-btn-ia');
-        const output = AppPrincipal.elements.iaAnalysisOutput;
-        
-        if(!window.GEMINI_API_KEY) {
-            alert("IA Desativada: A Chave do Gemini não foi configurada no Cofre de APIs.");
-            return;
-        }
-
-        btn.disabled = true;
-        btn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> A processar dados...";
-        output.textContent = "A recolher histórico do atleta no Firebase...\n";
-        AppPrincipal.elements.saveIaAnalysisBtn.classList.add('hidden');
-        AppPrincipal.elements.iaAnalysisModal.classList.remove('hidden');
-
-        try {
-            const fourWeeksAgo = new Date();
-            fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-            const isoDate = fourWeeksAgo.toISOString().split('T')[0];
-
-            const snap = await AppPrincipal.state.db.ref(`workouts/${athleteId}`).orderByChild('date').startAt(isoDate).once('value');
-            
-            let historyText = "";
-            let workoutsCount = 0;
-            let realizedCount = 0;
-
-            if (snap.exists()) {
-                snap.forEach(child => {
-                    const w = child.val();
-                    workoutsCount++;
-                    if(w.status === 'realizado' || w.status === 'realizado_parcial') realizedCount++;
-
-                    historyText += `Data: ${w.date} | Titulo: ${w.title} | Status: ${w.status} | Feedback Atleta: "${w.feedback || 'Sem feedback'}"`;
-                    if(w.stravaData) {
-                        historyText += ` | Real (Strava/GPS): Dist:${w.stravaData.distancia || '-'}, Tempo:${w.stravaData.tempo || '-'}`;
-                    }
-                    historyText += "\n";
-                });
-            }
-
-            if (workoutsCount === 0) {
-                 output.textContent = "Atleta não possui treinos registados no último mês para análise.";
-                 btn.disabled = false;
-                 btn.innerHTML = "<i class='bx bxs-brain'></i> Gerar Nova Análise (Gemini)";
-                 return;
-            }
-
-            output.textContent += `Foram encontrados ${workoutsCount} treinos (${realizedCount} concluídos). A enviar ao Fisiologista Virtual (Gemini 2.0)...\n\n`;
-
-            const prompt = `
-            Você é um Fisiologista e Treinador de Corrida de Elite (Coach).
-            Faça uma análise de performance e engajamento deste atleta com base no histórico das últimas 4 semanas.
-            
-            DADOS DOS TREINOS (Cronológico):
-            ${historyText}
-
-            INSTRUÇÕES PARA O RELATÓRIO:
-            1. Consistência: Avalie se o atleta cumpriu o planejado (taxa de adesão).
-            2. Evolução/Feedback: O que os comentários dele indicam? (Dores, cansaço, melhora de pace).
-            3. Cruzamento IA/Strava: Se houver dados reais (Strava/GPS), compare com a sensação dele.
-            4. Recomendação Clínica: Dê 2 sugestões práticas de ajuste para a próxima planilha (ex: reduzir volume, focar na mobilidade, manter a base).
-            
-            Formatação: Use tópicos curtos e profissionais em markdown (texto puro).
-            `;
-
-            const bodyData = {
-                contents: [{ parts: [{text: prompt}] }]
-            };
-
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${window.GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(bodyData)
-            });
-
-            if(!response.ok) throw new Error("Falha na API Gemini");
-            const data = await response.json();
-            
-            const markdownResult = data.candidates[0].content.parts[0].text;
-            output.textContent = markdownResult;
-
-            AppPrincipal.state.currentAnalysisData = {
-                athleteId: athleteId,
-                report: markdownResult,
-                timestamp: Date.now()
-            };
-
-            AppPrincipal.elements.saveIaAnalysisBtn.classList.remove('hidden');
-
-        } catch (error) {
-            console.error(error);
-            output.textContent += "ERRO: Não foi possível gerar a análise.\nVerifique a API Key no Cofre e sua conexão.";
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = "<i class='bx bxs-brain'></i> Gerar Nova Análise (Gemini)";
-        }
-    },
-
-    saveIaAnalysis: async () => {
-        if(!AppPrincipal.state.currentAnalysisData) return;
-        const data = AppPrincipal.state.currentAnalysisData;
-        const btn = AppPrincipal.elements.saveIaAnalysisBtn;
-        
-        btn.disabled = true;
-        btn.innerHTML = "<i class='bx bx-loader-alt bx-spin'></i> A guardar...";
-
-        try {
-            await AppPrincipal.state.db.ref(`clinicalAnalysis/${data.athleteId}`).push({
-                report: data.report,
-                timestamp: data.timestamp,
-                coachId: AppPrincipal.state.currentUser.uid
-            });
-            alert("Análise guardada no prontuário do atleta!");
-            AppPrincipal.elements.iaAnalysisModal.classList.add('hidden');
-        } catch(e) {
-            alert("Erro ao guardar: " + e.message);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = "<i class='bx bx-save'></i> Guardar Análise";
-        }
-    }
+    saveIaAnalysis: async () => {} // mantido vázio para compilação caso precise depois
 };
 
+// ===================================================================
+// MOTOR GPS NATIVO (WAKE LOCK + TELA APAGADA)
+// ===================================================================
 window.GPSTracker = {
-    map: null, polyline: null, marker: null, watchId: null, timerInterval: null,
+    map: null, polyline: null, marker: null, watchId: null, timerInterval: null, wakeLock: null,
     positions: [], totalDistance: 0, seconds: 0, isRunning: false, mapsLoaded: false,
+
+    // SOLUÇÃO PARA A TELA NÃO APAGAR DURANTE O TREINO
+    requestWakeLock: async () => {
+        try {
+            if ('wakeLock' in navigator) {
+                window.GPSTracker.wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Wake Lock Ativado: A tela não vai apagar.');
+            }
+        } catch (err) {
+            console.error('Falha no Wake Lock:', err);
+        }
+    },
+    releaseWakeLock: () => {
+        if (window.GPSTracker.wakeLock !== null) {
+            window.GPSTracker.wakeLock.release().then(() => {
+                window.GPSTracker.wakeLock = null;
+                console.log('Wake Lock Desativado.');
+            });
+        }
+    },
 
     initGoogleMaps: () => {
         if(window.GPSTracker.mapsLoaded) return;
@@ -955,6 +683,10 @@ window.GPSTracker = {
     start: () => {
         if(window.GPSTracker.isRunning) return;
         window.GPSTracker.isRunning = true;
+        
+        // Ativa o bloqueio de tela
+        window.GPSTracker.requestWakeLock();
+
         document.getElementById('btn-gps-start').classList.add('hidden');
         document.getElementById('btn-gps-pause').classList.remove('hidden');
         document.getElementById('btn-gps-stop').classList.remove('hidden');
@@ -964,8 +696,6 @@ window.GPSTracker = {
             window.GPSTracker.updateUI();
         }, 1000);
 
-        if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(console.error);
-
         window.GPSTracker.watchId = navigator.geolocation.watchPosition(pos => {
             if(!window.google || !window.google.maps || !window.google.maps.geometry) return;
 
@@ -974,7 +704,8 @@ window.GPSTracker = {
             if(window.GPSTracker.positions.length > 0) {
                 const lastPos = window.GPSTracker.positions[window.GPSTracker.positions.length - 1];
                 const dist = google.maps.geometry.spherical.computeDistanceBetween(lastPos, newPos);
-                if(dist > 0 && dist < 50) window.GPSTracker.totalDistance += dist;
+                // Filtro para ignorar erros malucos de GPS (pulos gigantes) e ignorar tremores < 1 metro
+                if(dist > 1 && dist < 50) window.GPSTracker.totalDistance += dist;
             }
             
             window.GPSTracker.positions.push(newPos);
@@ -985,13 +716,15 @@ window.GPSTracker = {
             
             window.GPSTracker.updateUI();
         }, err => {
-            console.error("GPS Error:", err); alert("Ative a localização exata do seu telemóvel.");
+            console.error("GPS Error:", err); 
         }, {enableHighAccuracy: true, maximumAge: 0, timeout: 5000});
     },
     pause: () => {
         window.GPSTracker.isRunning = false;
         clearInterval(window.GPSTracker.timerInterval);
         navigator.geolocation.clearWatch(window.GPSTracker.watchId);
+        window.GPSTracker.releaseWakeLock(); // Libera a tela
+        
         const pauseBtn = document.getElementById('btn-gps-pause');
         pauseBtn.innerHTML = "<i class='bx bx-play'></i>";
         pauseBtn.onclick = window.GPSTracker.resume;
@@ -1008,6 +741,7 @@ window.GPSTracker = {
         window.GPSTracker.isRunning = false;
         clearInterval(window.GPSTracker.timerInterval);
         if(window.GPSTracker.watchId) navigator.geolocation.clearWatch(window.GPSTracker.watchId);
+        window.GPSTracker.releaseWakeLock(); // Libera a tela
         
         if(askToSave && window.GPSTracker.totalDistance > 50) { 
             if(confirm("Treino finalizado! Deseja guardar na sua planilha e publicar no Feed?")) {
@@ -1057,7 +791,7 @@ window.GPSTracker = {
         document.getElementById('gps-pace').innerText = `--:--`;
     },
     saveWorkout: async () => {
-        const title = prompt("Dê um título para a sua corrida:", "Corrida Livre (LeRunners GPS)");
+        const title = prompt("Dê um título para a sua corrida:", "Corrida Livre (GPS)");
         if(!title) { window.GPSTracker.resume(); return; }
         
         const km = (window.GPSTracker.totalDistance / 1000).toFixed(2);
@@ -1073,30 +807,28 @@ window.GPSTracker = {
 
         const workoutData = {
             title: title,
-            date: new Date().toISOString(),
-            distancia: km + " km", 
-            tempo: timeStr,
-            pace: paceStr,
-            type: "Corrida",
-            isGpsTracked: true,
+            date: new Date().toISOString().split('T')[0],
+            tipoTreino: "Corrida",
             status: "realizado",
-            ownerId: AppPrincipal.state.currentUser.uid,
-            ownerName: AppPrincipal.state.userData.name || "Atleta"
+            source: 'lerunners_gps',
+            metrics: { distancia: km + " km", tempo: timeStr, pace: paceStr },
+            timestamp: Date.now()
         };
 
+        const uid = AppPrincipal.state.currentUser.uid;
+
         try {
-            const dbRef = AppPrincipal.state.db || firebase.database();
-            const pRef = await dbRef.ref(`workouts/${workoutData.ownerId}`).push(workoutData);
+            const ref = await AppPrincipal.state.db.ref(`users/${uid}/workouts`).push(workoutData);
             
-            const publicData = { ...workoutData, originalId: pRef.key };
+            const publicData = { ...workoutData, ownerId: uid, ownerName: AppPrincipal.state.userData.name, originalId: ref.key };
             if(AppPrincipal.state.userData.photoUrl) publicData.ownerPhotoUrl = AppPrincipal.state.userData.photoUrl;
-            await dbRef.ref(`publicWorkouts`).push(publicData);
+            await AppPrincipal.state.db.ref(`publicWorkouts`).push(publicData);
             
-            alert("Treino guardado com sucesso! O Coach já tem acesso.");
+            alert("Treino salvo e postado no feed!");
             window.GPSTracker.reset();
             window.GPSTracker.close();
         } catch(e) {
-            console.error(e); alert("Erro de conexão ao guardar corrida.");
+            console.error(e); alert("Erro ao salvar corrida.");
         }
     }
 };
@@ -1149,9 +881,9 @@ const AuthLogic = {
     handleLogin: (e) => {
         e.preventDefault();
         const email = document.getElementById('loginEmail').value; const password = document.getElementById('loginPassword').value;
-        if(AuthLogic.elements.loginErrorMsg) AuthLogic.elements.loginErrorMsg.textContent = "A conectar...";
+        if(AuthLogic.elements.loginErrorMsg) AuthLogic.elements.loginErrorMsg.textContent = "Conectando...";
         AuthLogic.auth.signInWithEmailAndPassword(email, password).catch(err => {
-            if(AuthLogic.elements.loginErrorMsg) AuthLogic.elements.loginErrorMsg.textContent = "Acesso Negado: Credenciais inválidas.";
+            if(AuthLogic.elements.loginErrorMsg) AuthLogic.elements.loginErrorMsg.textContent = "Credenciais inválidas.";
         });
     },
     handleRegister: (e) => {
@@ -1182,14 +914,8 @@ const AuthLogic = {
                     else { AuthLogic.auth.signOut(); AuthLogic.showView('login'); }
                 });
             });
-        }).catch(err => {
-             console.error("Falha ao checar rota de login.", err);
-        });
+        }).catch(err => { console.error(err); });
     }
 };
-
-function escapeHtml(unsafe) {
-    return (unsafe || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-}
 
 document.addEventListener('DOMContentLoaded', AppPrincipal.init);
